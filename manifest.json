@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "arTwitteriv",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "カスタム分野、新着、期間・引用数指定のランダム、高被引用論文を流すarXivタイムラインです。",
   "permissions": [
     "storage",
@@ -15,6 +15,9 @@
   "action": {
     "default_title": "arTwitterivを開く",
     "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "options_page": "options.html"
 }

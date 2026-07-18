@@ -2,6 +2,11 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.2] - 2026-07-18
+- Registered the background service worker so install-time defaults can run.
+- Kept unfiltered random timelines usable when Semantic Scholar has no citation record or citation fetching is unavailable.
+- Expanded local checks for extension file references and arXiv version-suffix removal.
+
 ## [0.4.1] - 2026-07-18
 - Renamed the extension from arXiv Scroll to arTwitteriv.
 - Added Git/Codex project files and local validation commands.

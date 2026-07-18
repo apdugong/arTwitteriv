@@ -76,7 +76,11 @@ function citationRange(modeName) {
   const rawMax = settings[`${prefix}MaxCitations`];
   return { min, max: rawMax === '' || rawMax == null ? Infinity : Number(rawMax) };
 }
-function passesCitation(paper, range) { return Number.isFinite(paper.citationCount) && paper.citationCount >= range.min && paper.citationCount <= range.max; }
+function passesCitation(paper, range) {
+  const allowsUnknownCitations = range.min === 0 && range.max === Infinity;
+  if (!Number.isFinite(paper.citationCount)) return allowsUnknownCitations;
+  return paper.citationCount >= range.min && paper.citationCount <= range.max;
+}
 async function loadSaved() { savedPapers = (await chrome.storage.local.get({ savedPapers: {} })).savedPapers; }
 async function persistSaved() { await chrome.storage.local.set({ savedPapers }); }
 
