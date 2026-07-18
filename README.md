@@ -48,3 +48,13 @@ git commit -m "Initial import of arTwitteriv"
 ```
 
 GitHubへ公開または非公開で置く方法とCodexへの移行手順は、`MIGRATION.md` を参照してください。
+
+Disclaimer
+
+arTwitteriv is an independent, unofficial open-source project.
+
+It is not affiliated with, endorsed by, or sponsored by arXiv, X Corp., or Twitter. “arXiv” and related marks belong to their respective owners.
+
+This project has been developed substantially with the assistance of generative AI, including AI-generated code, documentation, and design suggestions. The resulting software is reviewed and maintained by the project owner, but it may still contain errors, incomplete implementations, or unintended behavior.
+
+Users should independently verify important information obtained through this application, including paper metadata, citation counts, and external links.
