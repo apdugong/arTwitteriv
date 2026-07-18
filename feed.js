@@ -7,6 +7,9 @@ let exhausted = false;
 let savedPapers = {};
 let randomSeen = new Set();
 let semanticScholarPauseUntil = 0;
+const CITATION_CACHE_KEY = 'citationCounts';
+const CITATION_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
+const MISSING_CITATION_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 
 const feed = document.querySelector('#feed');
 const status = document.querySelector('#status');
@@ -28,7 +31,12 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
 }
 function currentField() { return settings.fields.find(field => field.id === selectedField) || settings.fields[0]; }
-function currentQuery() { return currentField()?.query || 'cat:hep-th'; }
+function arxivQuoted(value) { return String(value || '').replaceAll('"', ' ').replace(/\s+/g, ' ').trim(); }
+function currentQuery() {
+  const query = currentField()?.query || 'cat:hep-th';
+  const author = arxivQuoted(settings.authorFilter);
+  return author ? `(${query}) AND au:"${author}"` : query;
+}
 function apiUrl(params) { return `https://export.arxiv.org/api/query?${new URLSearchParams(params)}`; }
 function arxivDate(date, end = false) {
   if (!date) return end ? '299912312359' : '199101010000';
@@ -72,27 +80,57 @@ async function fetchPapers(url) {
   if (doc.querySelector('parsererror')) throw new Error('arXiv応答の解析に失敗しました');
   return { papers: [...doc.querySelectorAll('entry')].map(parseEntry), total: Number(text(doc, 'totalResults')) || 0 };
 }
-async function addCitationCounts(papers) {
+async function loadCitationCache() {
+  return (await chrome.storage.local.get({ [CITATION_CACHE_KEY]: {} }))[CITATION_CACHE_KEY];
+}
+async function persistCitationCache(cache) {
+  await chrome.storage.local.set({ [CITATION_CACHE_KEY]: cache });
+}
+function cachedCitationCount(record, now = Date.now()) {
+  if (!record || !Number.isFinite(record.fetchedAt)) return undefined;
+  const ttl = Number.isFinite(record.citationCount) ? CITATION_CACHE_TTL : MISSING_CITATION_CACHE_TTL;
+  return now - record.fetchedAt <= ttl ? record.citationCount : undefined;
+}
+async function addCitationCounts(papers, options = {}) {
+  const chunkSize = options.chunkSize || 100;
+  const cache = await loadCitationCache();
+  const now = Date.now();
   const output = papers.map(p => ({ ...p, citationCount: null }));
-  for (let offset = 0; offset < output.length; offset += 100) {
-    const chunk = output.slice(offset, offset + 100);
-    let response;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const waitMs = Math.max(0, semanticScholarPauseUntil - Date.now());
-      if (waitMs) await sleep(waitMs);
-      response = await fetch('https://api.semanticscholar.org/graph/v1/paper/batch?fields=externalIds,citationCount', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: chunk.map(p => `ARXIV:${p.id}`) })
+  const missing = [];
+  output.forEach(paper => {
+    const cached = cachedCitationCount(cache[paper.id], now);
+    if (cached === undefined) missing.push(paper);
+    else paper.citationCount = cached;
+  });
+  let cacheChanged = false;
+  try {
+    for (let offset = 0; offset < missing.length; offset += chunkSize) {
+      const chunk = missing.slice(offset, offset + chunkSize);
+      let response;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const waitMs = Math.max(0, semanticScholarPauseUntil - Date.now());
+        if (waitMs) await sleep(waitMs);
+        response = await fetch('https://api.semanticscholar.org/graph/v1/paper/batch?fields=externalIds,citationCount', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: chunk.map(p => `ARXIV:${p.id}`) })
+        });
+        if (response.status !== 429) break;
+        const wait = retryAfterMs(response);
+        semanticScholarPauseUntil = Date.now() + wait;
+        if (attempt === 0) await sleep(wait);
+      }
+      if (response.status === 429) throw new SemanticScholarRateLimitError(Math.max(0, semanticScholarPauseUntil - Date.now()));
+      if (!response.ok) throw new Error(`Semantic Scholar HTTP ${response.status}`);
+      const data = await response.json();
+      data.forEach((item, i) => {
+        const citationCount = item && Number.isFinite(item.citationCount) ? item.citationCount : null;
+        chunk[i].citationCount = citationCount;
+        cache[chunk[i].id] = { citationCount, fetchedAt: Date.now() };
+        cacheChanged = true;
       });
-      if (response.status !== 429) break;
-      const wait = retryAfterMs(response);
-      semanticScholarPauseUntil = Date.now() + wait;
-      if (attempt === 0) await sleep(wait);
     }
-    if (response.status === 429) throw new SemanticScholarRateLimitError(Math.max(0, semanticScholarPauseUntil - Date.now()));
-    if (!response.ok) throw new Error(`Semantic Scholar HTTP ${response.status}`);
-    const data = await response.json();
-    data.forEach((item, i) => { if (item && Number.isFinite(item.citationCount)) chunk[i].citationCount = item.citationCount; });
+  } finally {
+    if (cacheChanged) await persistCitationCache(cache);
   }
   return output;
 }
@@ -165,24 +203,28 @@ async function loadFilteredRandom(modeName) {
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
     if (!available) { showStatus('期間・分野に該当する論文がありません。'); return; }
-    const target = settings.batchSize;
+    const target = modeName === 'classics' ? Math.min(settings.batchSize, 10) : settings.batchSize;
     const accepted = [];
     const range = citationRange(modeName);
     let rateLimited = false;
-    const maxAttempts = modeName === 'classics' ? 7 : 10;
+    const maxAttempts = modeName === 'classics' ? 4 : 10;
+    const pageSize = modeName === 'classics' ? 25 : 50;
     for (let attempt = 0; attempt < maxAttempts && accepted.length < target; attempt++) {
-      let offset = Math.floor(Math.random() * Math.max(1, available - Math.min(50, available)));
-      for (let i = 0; i < 8 && randomSeen.has(`${modeName}:${offset}`); i++) offset = Math.floor(Math.random() * Math.max(1, available - 50));
+      let offset = Math.floor(Math.random() * Math.max(1, available - Math.min(pageSize, available)));
+      for (let i = 0; i < 8 && randomSeen.has(`${modeName}:${offset}`); i++) offset = Math.floor(Math.random() * Math.max(1, available - pageSize));
       randomSeen.add(`${modeName}:${offset}`);
-      const result = await fetchPapers(apiUrl({ search_query: query, start: offset, max_results: Math.min(50, available), sortBy: 'submittedDate', sortOrder: 'descending' }));
+      const result = await fetchPapers(apiUrl({ search_query: query, start: offset, max_results: Math.min(pageSize, available), sortBy: 'submittedDate', sortOrder: 'descending' }));
       let enriched;
-      try { enriched = await addCitationCounts(result.papers); }
+      try { enriched = await addCitationCounts(result.papers, { chunkSize: pageSize }); }
       catch (error) {
         if (error instanceof SemanticScholarRateLimitError) { rateLimited = true; break; }
         if (range.min > 0 || range.max < Infinity) throw error;
         enriched = result.papers.map(p => ({ ...p, citationCount: null }));
       }
-      enriched.sort(() => Math.random() - 0.5).forEach(p => {
+      const ranked = modeName === 'classics'
+        ? enriched.sort((a, b) => (b.citationCount ?? -1) - (a.citationCount ?? -1))
+        : enriched.sort(() => Math.random() - 0.5);
+      ranked.forEach(p => {
         if (accepted.length < target && passesCitation(p, range) && !document.querySelector(`[data-id="${CSS.escape(p.id)}"]`)) accepted.push(p);
       });
     }

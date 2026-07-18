@@ -2,6 +2,13 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.5] - 2026-07-18
+- Added an optional author-name filter to the settings page.
+
+## [0.4.4] - 2026-07-18
+- Added local citation-count caching and made classics discovery use fewer Semantic Scholar lookups.
+- Raised the default minimum citation count for classics to 500.
+
 ## [0.4.3] - 2026-07-18
 - Added retry and friendlier partial-result handling when Semantic Scholar rate limits citation lookups.
 

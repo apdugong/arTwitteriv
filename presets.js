@@ -9,6 +9,7 @@ const BUILTIN_FIELDS = [
 const DEFAULT_SETTINGS = {
   fields: BUILTIN_FIELDS,
   defaultField: 'generalized',
+  authorFilter: '',
   batchSize: 20,
   randomStartDate: '1991-01-01',
   randomEndDate: '',
@@ -16,6 +17,6 @@ const DEFAULT_SETTINGS = {
   randomMaxCitations: '',
   classicsStartDate: '1991-01-01',
   classicsEndDate: '',
-  classicsMinCitations: 100,
+  classicsMinCitations: 500,
   classicsMaxCitations: ''
 };
