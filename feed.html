@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>arTwitteriv</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">arTwitteriv</div>
+      <div class="subtitle">論文が流れてくるだけのタイムライン</div>
+    </div>
+    <div class="header-actions">
+      <button id="refreshButton" class="secondary">更新</button>
+      <button id="optionsButton" class="secondary">設定</button>
+    </div>
+  </header>
+
+  <main>
+    <nav class="feed-tabs" aria-label="表示切替">
+      <button data-mode="latest" class="tab active">新着</button>
+      <button data-mode="random" class="tab">ランダム</button>
+      <button data-mode="classics" class="tab">名著</button>
+      <button data-mode="saved" class="tab">保存済み</button>
+    </nav>
+
+    <section id="feedControls" class="feed-controls">
+      <label>
+        分野
+        <select id="fieldSelect"></select>
+      </label>
+      <button id="shuffleButton" class="secondary compact" hidden>別の論文を流す</button>
+    </section>
+
+    <section id="modeIntro" class="mode-intro" hidden></section>
+    <section id="status" class="status">新着を読み込み中…</section>
+    <section id="feed" class="feed" aria-live="polite"></section>
+    <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+  </main>
+
+  <template id="paperTemplate">
+    <article class="paper-card">
+      <div class="avatar" aria-hidden="true">α</div>
+      <div class="paper-content">
+        <div class="paper-meta">
+          <span class="primary-category"></span><span>·</span><span class="date"></span>
+          <span class="classic-badge" hidden>高被引用</span><span class="citation-count" hidden></span>
+        </div>
+        <h2 class="title"></h2>
+        <p class="authors"></p>
+        <p class="curator-note" hidden></p>
+        <p class="summary collapsed"></p>
+        <div class="card-actions">
+          <button class="readMore text-button">全文</button>
+          <button class="save text-button">保存</button>
+          <a class="abstract text-link" target="_blank" rel="noopener noreferrer">arXiv</a>
+          <a class="pdf text-link" target="_blank" rel="noopener noreferrer">PDF</a>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="presets.js"></script>
+  <script src="feed.js"></script>
+</body>
+</html>
