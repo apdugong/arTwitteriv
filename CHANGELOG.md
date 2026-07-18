@@ -2,6 +2,12 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.7] - 2026-07-18
+- Added discovery badges and same-author/same-field exploration actions on paper cards.
+
+## [0.4.6] - 2026-07-18
+- Added lightweight paper reactions for interested, read, and skipped papers, with small feed ranking boosts from reaction history.
+
 ## [0.4.5] - 2026-07-18
 - Added an optional author-name filter to the settings page.
 

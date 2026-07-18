@@ -1,6 +1,6 @@
 {
   "name": "artwitteriv",
-  "version": "0.4.5",
+  "version": "0.4.7",
   "private": true,
   "description": "A social-media-style arXiv paper timeline Chrome extension.",
   "scripts": {

@@ -1,10 +1,13 @@
 let settings;
 let mode = 'latest';
 let selectedField = '';
+let explorationQuery = '';
+let explorationLabel = '';
 let start = 0;
 let loading = false;
 let exhausted = false;
 let savedPapers = {};
+let paperReactions = {};
 let randomSeen = new Set();
 let semanticScholarPauseUntil = 0;
 const CITATION_CACHE_KEY = 'citationCounts';
@@ -30,6 +33,7 @@ function formatDate(value) {
   if (days > 1 && days < 7) return `${days}日前`;
   return new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
 }
+function paperAgeDays(paper) { return Math.floor((Date.now() - new Date(paper.published).getTime()) / 86400000); }
 function currentField() { return settings.fields.find(field => field.id === selectedField) || settings.fields[0]; }
 function arxivQuoted(value) { return String(value || '').replaceAll('"', ' ').replace(/\s+/g, ' ').trim(); }
 function currentQuery() {
@@ -37,6 +41,7 @@ function currentQuery() {
   const author = arxivQuoted(settings.authorFilter);
   return author ? `(${query}) AND au:"${author}"` : query;
 }
+function activeQuery() { return explorationQuery || currentQuery(); }
 function apiUrl(params) { return `https://export.arxiv.org/api/query?${new URLSearchParams(params)}`; }
 function arxivDate(date, end = false) {
   if (!date) return end ? '299912312359' : '199101010000';
@@ -147,13 +152,96 @@ function passesCitation(paper, range) {
 }
 async function loadSaved() { savedPapers = (await chrome.storage.local.get({ savedPapers: {} })).savedPapers; }
 async function persistSaved() { await chrome.storage.local.set({ savedPapers }); }
+async function loadReactions() { paperReactions = (await chrome.storage.local.get({ paperReactions: {} })).paperReactions; }
+async function persistReactions() { await chrome.storage.local.set({ paperReactions }); }
+function reactionFor(paper) { return paperReactions[paper.id]?.reaction || ''; }
+function isSkipped(paper) { return reactionFor(paper) === 'skip'; }
+function visiblePapers(papers) { return papers.filter(paper => !isSkipped(paper)); }
+function reactionAffinity(paper) {
+  const categories = new Set(paper.categories || []);
+  const authors = new Set(paper.authors || []);
+  return Object.values(paperReactions).reduce((score, record) => {
+    if (!['interest', 'read'].includes(record.reaction)) return score;
+    const weight = record.reaction === 'interest' ? 3 : 1;
+    const reactedPaper = record.paper || {};
+    const categoryHit = (reactedPaper.categories || []).some(category => categories.has(category));
+    const authorHit = (reactedPaper.authors || []).some(author => authors.has(author));
+    return score + (categoryHit ? weight : 0) + (authorHit ? weight * 2 : 0);
+  }, 0);
+}
+function rankForTimeline(papers, modeName) {
+  return papers.sort((a, b) => {
+    const affinity = reactionAffinity(b) - reactionAffinity(a);
+    if (affinity) return affinity;
+    if (modeName === 'classics') return (b.citationCount ?? -1) - (a.citationCount ?? -1);
+    if (modeName === 'latest') return new Date(b.published) - new Date(a.published);
+    return Math.random() - 0.5;
+  });
+}
+function labelReaction(button, activeLabel, inactiveLabel, active) {
+  button.classList.toggle('active', active);
+  button.textContent = active ? activeLabel : inactiveLabel;
+}
+async function setReaction(paper, reaction, card) {
+  const current = reactionFor(paper);
+  if (current === reaction) delete paperReactions[paper.id];
+  else paperReactions[paper.id] = {
+    reaction,
+    updatedAt: Date.now(),
+    paper: { id: paper.id, title: paper.title, published: paper.published, categories: paper.categories, authors: paper.authors }
+  };
+  await persistReactions();
+  if (reactionFor(paper) === 'skip') {
+    card.remove();
+    if (mode === 'saved' && !feed.children.length) showStatus('保存した論文はまだありません。');
+    return;
+  }
+  updateReactionButtons(card, paper);
+}
+function updateReactionButtons(card, paper) {
+  const reaction = reactionFor(paper);
+  labelReaction(card.querySelector('.interest'), '気になる済み', '気になる', reaction === 'interest');
+  labelReaction(card.querySelector('.read'), '読了済み', '読んだ', reaction === 'read');
+  labelReaction(card.querySelector('.skip'), 'スキップ済み', 'スキップ', reaction === 'skip');
+}
+function discoveryBadges(paper, extra = {}) {
+  const badges = [];
+  const ageDays = paperAgeDays(paper);
+  if (extra.classic || (Number.isFinite(paper.citationCount) && paper.citationCount >= Number(settings.classicsMinCitations || 0))) badges.push('高引用');
+  if (ageDays >= 0 && ageDays <= 7) badges.push('新着');
+  if (reactionAffinity(paper) > 0) badges.push('関心に近い');
+  if (savedPapers[paper.id]) badges.push('保存済み');
+  return badges.slice(0, 3);
+}
+function renderDiscoveryBadges(card, paper, extra = {}) {
+  const container = card.querySelector('.discovery-badges');
+  const badges = discoveryBadges(paper, extra);
+  container.replaceChildren();
+  container.hidden = !badges.length;
+  badges.forEach(label => {
+    const badge = document.createElement('span');
+    badge.className = 'discovery-badge';
+    badge.textContent = label;
+    container.appendChild(badge);
+  });
+}
+function explore(query, label) {
+  explorationQuery = query;
+  explorationLabel = label;
+  mode = 'latest';
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
+  reloadMode();
+}
 
 function renderPaper(paper, extra = {}) {
+  if (isSkipped(paper)) return;
   const fragment = template.content.cloneNode(true);
   const card = fragment.querySelector('.paper-card');
   const summaryEl = fragment.querySelector('.summary');
   const readMore = fragment.querySelector('.readMore');
   const save = fragment.querySelector('.save');
+  const sameAuthor = fragment.querySelector('.same-author');
+  const sameField = fragment.querySelector('.same-field');
   card.dataset.id = paper.id;
   fragment.querySelector('.primary-category').textContent = paper.categories[0] || 'arXiv';
   fragment.querySelector('.date').textContent = formatDate(paper.published);
@@ -166,6 +254,15 @@ function renderPaper(paper, extra = {}) {
   const citation = fragment.querySelector('.citation-count');
   if (Number.isFinite(paper.citationCount)) { citation.hidden = false; citation.textContent = `${paper.citationCount.toLocaleString()} citations`; }
   if (extra.classic) fragment.querySelector('.classic-badge').hidden = false;
+  renderDiscoveryBadges(card, paper, extra);
+  updateReactionButtons(card, paper);
+  fragment.querySelector('.interest').addEventListener('click', () => setReaction(paper, 'interest', card));
+  fragment.querySelector('.read').addEventListener('click', () => setReaction(paper, 'read', card));
+  fragment.querySelector('.skip').addEventListener('click', () => setReaction(paper, 'skip', card));
+  sameAuthor.hidden = !paper.authors[0];
+  sameAuthor.addEventListener('click', () => explore(`au:"${arxivQuoted(paper.authors[0])}"`, `著者 ${paper.authors[0]}`));
+  sameField.hidden = !paper.categories[0];
+  sameField.addEventListener('click', () => explore(`cat:${paper.categories[0]}`, `分野 ${paper.categories[0]}`));
   readMore.addEventListener('click', () => {
     const collapsed = summaryEl.classList.toggle('collapsed');
     readMore.textContent = collapsed ? '全文' : '折りたたむ';
@@ -185,9 +282,9 @@ async function loadLatest() {
   if (loading || exhausted || mode !== 'latest') return;
   loading = true; showStatus(start ? 'さらに読み込み中…' : '新着を読み込み中…');
   try {
-    const result = await fetchPapers(apiUrl({ search_query: currentQuery(), start, max_results: settings.batchSize, sortBy: 'submittedDate', sortOrder: 'descending' }));
+    const result = await fetchPapers(apiUrl({ search_query: activeQuery(), start, max_results: settings.batchSize, sortBy: 'submittedDate', sortOrder: 'descending' }));
     if (!result.papers.length) { exhausted = true; showStatus('該当する論文がありません。'); return; }
-    result.papers.forEach(p => renderPaper(p));
+    rankForTimeline(visiblePapers(result.papers), 'latest').forEach(p => renderPaper(p));
     start += result.papers.length; exhausted = result.papers.length < settings.batchSize;
     exhausted ? showStatus('ここまでです。') : hideStatus();
   } catch (e) { showStatus(`読み込みに失敗しました: ${e.message}`); }
@@ -199,7 +296,7 @@ async function loadFilteredRandom(modeName) {
   loading = true; showStatus(modeName === 'classics' ? '高被引用論文を探しています…' : '条件に合う論文をランダムに探しています…');
   try {
     const prefix = modeName === 'classics' ? 'classics' : 'random';
-    const query = datedQuery(currentQuery(), settings[`${prefix}StartDate`], settings[`${prefix}EndDate`]);
+    const query = datedQuery(activeQuery(), settings[`${prefix}StartDate`], settings[`${prefix}EndDate`]);
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
     if (!available) { showStatus('期間・分野に該当する論文がありません。'); return; }
@@ -221,11 +318,8 @@ async function loadFilteredRandom(modeName) {
         if (range.min > 0 || range.max < Infinity) throw error;
         enriched = result.papers.map(p => ({ ...p, citationCount: null }));
       }
-      const ranked = modeName === 'classics'
-        ? enriched.sort((a, b) => (b.citationCount ?? -1) - (a.citationCount ?? -1))
-        : enriched.sort(() => Math.random() - 0.5);
-      ranked.forEach(p => {
-        if (accepted.length < target && passesCitation(p, range) && !document.querySelector(`[data-id="${CSS.escape(p.id)}"]`)) accepted.push(p);
+      rankForTimeline(enriched, modeName).forEach(p => {
+        if (accepted.length < target && !isSkipped(p) && passesCitation(p, range) && !document.querySelector(`[data-id="${CSS.escape(p.id)}"]`)) accepted.push(p);
       });
     }
     accepted.forEach(p => renderPaper(p, { classic: modeName === 'classics' }));
@@ -239,13 +333,14 @@ async function loadFilteredRandom(modeName) {
 }
 
 function showSaved() {
-  const papers = Object.values(savedPapers).sort((a, b) => new Date(b.published) - new Date(a.published));
+  const papers = visiblePapers(Object.values(savedPapers)).sort((a, b) => new Date(b.published) - new Date(a.published));
   if (!papers.length) showStatus('保存した論文はまだありません。');
   else { hideStatus(); papers.forEach(p => renderPaper(p)); }
 }
 function updateIntro() {
   modeIntro.hidden = false;
-  if (mode === 'random') modeIntro.textContent = `期間・引用数の条件に合う「${currentField().label}」の論文をランダムに流します。条件は設定画面で変更できます。`;
+  if (explorationQuery) modeIntro.textContent = `「${explorationLabel}」を探索中です。分野を選び直すと通常のタイムラインに戻ります。`;
+  else if (mode === 'random') modeIntro.textContent = `期間・引用数の条件に合う「${currentField().label}」の論文をランダムに流します。条件は設定画面で変更できます。`;
   else if (mode === 'classics') modeIntro.textContent = `固定リストではなく、「${currentField().label}」の論文を引用数でその都度選別して流します。`;
   else modeIntro.hidden = true;
 }
@@ -269,7 +364,7 @@ function populateFields() {
     const option = document.createElement('option'); option.value = field.id; option.textContent = field.label; fieldSelect.appendChild(option);
   });
 }
-fieldSelect.addEventListener('change', () => { selectedField = fieldSelect.value; randomSeen.clear(); reloadMode(); });
+fieldSelect.addEventListener('change', () => { selectedField = fieldSelect.value; explorationQuery = ''; explorationLabel = ''; randomSeen.clear(); reloadMode(); });
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchMode(tab.dataset.mode)));
 shuffleButton.addEventListener('click', () => { feed.replaceChildren(); randomSeen.clear(); reloadMode(); });
 document.querySelector('#refreshButton').addEventListener('click', reloadMode);
@@ -286,5 +381,5 @@ new IntersectionObserver(entries => {
   populateFields();
   selectedField = settings.fields.some(f => f.id === settings.defaultField) ? settings.defaultField : settings.fields[0].id;
   fieldSelect.value = selectedField;
-  await loadSaved(); reloadMode();
+  await loadSaved(); await loadReactions(); reloadMode();
 })();

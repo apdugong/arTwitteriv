@@ -17,7 +17,7 @@ button { cursor: pointer; }
 }
 .brand { font-size: 21px; font-weight: 800; }
 .subtitle { color: #6b7785; font-size: 12px; }
-.header-actions, .card-actions { display: flex; gap: 13px; flex-wrap: wrap; }
+.header-actions, .card-actions, .reaction-actions, .discovery-badges { display: flex; gap: 13px; flex-wrap: wrap; }
 main { max-width: 680px; margin: 0 auto; border-left: 1px solid #e4e8ec; border-right: 1px solid #e4e8ec; min-height: 100vh; }
 .feed-tabs { position: sticky; top: 62px; z-index: 8; display: grid; grid-template-columns: 1fr 1fr; background: rgba(255,255,255,.95); border-bottom: 1px solid #e4e8ec; }
 .tab { border: 0; background: transparent; padding: 14px; font-weight: 700; color: #647180; }
@@ -32,9 +32,14 @@ main { max-width: 680px; margin: 0 auto; border-left: 1px solid #e4e8ec; border-
 .authors { color: #53606e; margin: 0 0 8px; font-size: 13px; }
 .summary { margin: 8px 0 11px; font-size: 15px; }
 .summary.collapsed { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.primary, .secondary, .text-button, .text-link { border-radius: 9px; padding: 8px 12px; border: 1px solid transparent; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.primary, .secondary, .reaction-button, .text-button, .text-link { border-radius: 9px; padding: 8px 12px; border: 1px solid transparent; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .primary { background: #172b4d; color: white; }
 .secondary { background: white; color: #26384a; border-color: #cbd3dc; }
+.reaction-actions { gap: 7px; margin: 9px 0 8px; }
+.reaction-button { padding: 5px 9px; background: #f6f8fa; color: #3e4c59; border-color: #dce2e8; font-size: 12px; font-weight: 700; }
+.reaction-button.active { background: #172b4d; color: white; border-color: #172b4d; }
+.discovery-badges { gap: 6px; margin: 7px 0 5px; }
+.discovery-badge { display: inline-flex; align-items: center; border: 1px solid #d8e3ee; border-radius: 999px; background: #f4f7fb; color: #42566b; padding: 2px 7px; font-size: 12px; font-weight: 700; }
 .text-button, .text-link { padding: 2px 0; border: 0; background: transparent; color: #536b84; font-size: 13px; }
 .text-button:hover, .text-link:hover { text-decoration: underline; }
 .status { text-align: center; padding: 34px 12px; color: #687583; }
