@@ -6,6 +6,7 @@ let loading = false;
 let exhausted = false;
 let savedPapers = {};
 let randomSeen = new Set();
+let semanticScholarPauseUntil = 0;
 
 const feed = document.querySelector('#feed');
 const status = document.querySelector('#status');
@@ -36,6 +37,21 @@ function arxivDate(date, end = false) {
 function datedQuery(query, startDate, endDate) {
   return `(${query}) AND submittedDate:[${arxivDate(startDate)} TO ${arxivDate(endDate, true)}]`;
 }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function retryAfterMs(response) {
+  const value = response.headers.get('Retry-After');
+  if (!value) return 4000;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 1000), 15000);
+  const date = new Date(value).getTime();
+  return Number.isFinite(date) ? Math.min(Math.max(date - Date.now(), 1000), 15000) : 4000;
+}
+class SemanticScholarRateLimitError extends Error {
+  constructor(waitMs) {
+    super('Semantic Scholarのレート制限中です。少し待ってからもう一度お試しください。');
+    this.waitMs = waitMs;
+  }
+}
 function parseEntry(entry) {
   const id = entryId(entry);
   return {
@@ -60,10 +76,20 @@ async function addCitationCounts(papers) {
   const output = papers.map(p => ({ ...p, citationCount: null }));
   for (let offset = 0; offset < output.length; offset += 100) {
     const chunk = output.slice(offset, offset + 100);
-    const response = await fetch('https://api.semanticscholar.org/graph/v1/paper/batch?fields=externalIds,citationCount', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: chunk.map(p => `ARXIV:${p.id}`) })
-    });
+    let response;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const waitMs = Math.max(0, semanticScholarPauseUntil - Date.now());
+      if (waitMs) await sleep(waitMs);
+      response = await fetch('https://api.semanticscholar.org/graph/v1/paper/batch?fields=externalIds,citationCount', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: chunk.map(p => `ARXIV:${p.id}`) })
+      });
+      if (response.status !== 429) break;
+      const wait = retryAfterMs(response);
+      semanticScholarPauseUntil = Date.now() + wait;
+      if (attempt === 0) await sleep(wait);
+    }
+    if (response.status === 429) throw new SemanticScholarRateLimitError(Math.max(0, semanticScholarPauseUntil - Date.now()));
     if (!response.ok) throw new Error(`Semantic Scholar HTTP ${response.status}`);
     const data = await response.json();
     data.forEach((item, i) => { if (item && Number.isFinite(item.citationCount)) chunk[i].citationCount = item.citationCount; });
@@ -142,7 +168,9 @@ async function loadFilteredRandom(modeName) {
     const target = settings.batchSize;
     const accepted = [];
     const range = citationRange(modeName);
-    for (let attempt = 0; attempt < 12 && accepted.length < target; attempt++) {
+    let rateLimited = false;
+    const maxAttempts = modeName === 'classics' ? 7 : 10;
+    for (let attempt = 0; attempt < maxAttempts && accepted.length < target; attempt++) {
       let offset = Math.floor(Math.random() * Math.max(1, available - Math.min(50, available)));
       for (let i = 0; i < 8 && randomSeen.has(`${modeName}:${offset}`); i++) offset = Math.floor(Math.random() * Math.max(1, available - 50));
       randomSeen.add(`${modeName}:${offset}`);
@@ -150,6 +178,7 @@ async function loadFilteredRandom(modeName) {
       let enriched;
       try { enriched = await addCitationCounts(result.papers); }
       catch (error) {
+        if (error instanceof SemanticScholarRateLimitError) { rateLimited = true; break; }
         if (range.min > 0 || range.max < Infinity) throw error;
         enriched = result.papers.map(p => ({ ...p, citationCount: null }));
       }
@@ -158,7 +187,9 @@ async function loadFilteredRandom(modeName) {
       });
     }
     accepted.forEach(p => renderPaper(p, { classic: modeName === 'classics' }));
-    if (!accepted.length) showStatus('条件に合う論文を見つけられませんでした。期間または引用数を緩めてください。');
+    if (rateLimited && accepted.length) showStatus(`${accepted.length}件見つかりました。Semantic Scholarの制限中なので、少し待ってから続きを探します。`);
+    else if (rateLimited) showStatus('Semantic Scholarの制限中です。少し待ってからもう一度お試しください。');
+    else if (!accepted.length) showStatus('条件に合う論文を見つけられませんでした。期間または引用数を緩めてください。');
     else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
     else hideStatus();
   } catch (e) { showStatus(`読み込みに失敗しました: ${e.message}`); }

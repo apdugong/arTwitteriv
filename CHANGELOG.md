@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.3] - 2026-07-18
+- Added retry and friendlier partial-result handling when Semantic Scholar rate limits citation lookups.
+
 ## [0.4.2] - 2026-07-18
 - Registered the background service worker so install-time defaults can run.
 - Kept unfiltered random timelines usable when Semantic Scholar has no citation record or citation fetching is unavailable.
