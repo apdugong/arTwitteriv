@@ -2,8 +2,13 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.8] - 2026-07-18
+- Added INSPIRE citation-count supplementation for high-energy physics papers.
+
 ## [0.4.7] - 2026-07-18
 - Added discovery badges and same-author/same-field exploration actions on paper cards.
+- Kept random timelines random by avoiding reaction-history ranking and only showing the interest badge for stronger matches.
+- Added retries and friendlier messages for temporary arXiv server errors.
 
 ## [0.4.6] - 2026-07-18
 - Added lightweight paper reactions for interested, read, and skipped papers, with small feed ranking boosts from reaction history.

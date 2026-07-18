@@ -10,6 +10,7 @@ let savedPapers = {};
 let paperReactions = {};
 let randomSeen = new Set();
 let semanticScholarPauseUntil = 0;
+let inspirePauseUntil = 0;
 const CITATION_CACHE_KEY = 'citationCounts';
 const CITATION_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 const MISSING_CITATION_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
@@ -51,6 +52,7 @@ function datedQuery(query, startDate, endDate) {
   return `(${query}) AND submittedDate:[${arxivDate(startDate)} TO ${arxivDate(endDate, true)}]`;
 }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function isRetryableArxivStatus(status) { return [500, 502, 503, 504].includes(status); }
 function retryAfterMs(response) {
   const value = response.headers.get('Retry-After');
   if (!value) return 4000;
@@ -59,9 +61,9 @@ function retryAfterMs(response) {
   const date = new Date(value).getTime();
   return Number.isFinite(date) ? Math.min(Math.max(date - Date.now(), 1000), 15000) : 4000;
 }
-class SemanticScholarRateLimitError extends Error {
+class CitationRateLimitError extends Error {
   constructor(waitMs) {
-    super('Semantic Scholarのレート制限中です。少し待ってからもう一度お試しください。');
+    super('引用数APIのレート制限中です。少し待ってからもう一度お試しください。');
     this.waitMs = waitMs;
   }
 }
@@ -79,7 +81,12 @@ function parseEntry(entry) {
   };
 }
 async function fetchPapers(url) {
-  const response = await fetch(url);
+  let response;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    response = await fetch(url);
+    if (!isRetryableArxivStatus(response.status)) break;
+    if (attempt < 2) await sleep(1200 * (attempt + 1));
+  }
   if (!response.ok) throw new Error(`arXiv HTTP ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), 'application/xml');
   if (doc.querySelector('parsererror')) throw new Error('arXiv応答の解析に失敗しました');
@@ -96,6 +103,37 @@ function cachedCitationCount(record, now = Date.now()) {
   const ttl = Number.isFinite(record.citationCount) ? CITATION_CACHE_TTL : MISSING_CITATION_CACHE_TTL;
   return now - record.fetchedAt <= ttl ? record.citationCount : undefined;
 }
+function cachedCitationSource(record, now = Date.now()) {
+  return cachedCitationCount(record, now) === undefined ? '' : record.citationSource || '';
+}
+function isHepPaper(paper) {
+  return (paper.categories || []).some(category => /^hep-/.test(category));
+}
+function mergeCitation(paper, citationCount, citationSource) {
+  if (!Number.isFinite(citationCount)) return false;
+  if (!Number.isFinite(paper.citationCount) || citationCount > paper.citationCount) {
+    paper.citationCount = citationCount;
+    paper.citationSource = citationSource;
+    return true;
+  }
+  return false;
+}
+async function fetchInspireCitationCount(paper) {
+  const waitMs = Math.max(0, inspirePauseUntil - Date.now());
+  if (waitMs) await sleep(waitMs);
+  const response = await fetch(`https://inspirehep.net/api/arxiv/${encodeURIComponent(paper.id)}`);
+  if (response.status === 404) return null;
+  if (response.status === 429) {
+    const wait = retryAfterMs(response);
+    inspirePauseUntil = Date.now() + Math.max(wait, 5000);
+    throw new CitationRateLimitError(wait);
+  }
+  if (!response.ok) return null;
+  const data = await response.json();
+  const citationCount = data?.metadata?.citation_count;
+  inspirePauseUntil = Date.now() + 400;
+  return Number.isFinite(citationCount) ? citationCount : null;
+}
 async function addCitationCounts(papers, options = {}) {
   const chunkSize = options.chunkSize || 100;
   const cache = await loadCitationCache();
@@ -105,7 +143,7 @@ async function addCitationCounts(papers, options = {}) {
   output.forEach(paper => {
     const cached = cachedCitationCount(cache[paper.id], now);
     if (cached === undefined) missing.push(paper);
-    else paper.citationCount = cached;
+    else { paper.citationCount = cached; paper.citationSource = cachedCitationSource(cache[paper.id], now); }
   });
   let cacheChanged = false;
   try {
@@ -124,15 +162,28 @@ async function addCitationCounts(papers, options = {}) {
         semanticScholarPauseUntil = Date.now() + wait;
         if (attempt === 0) await sleep(wait);
       }
-      if (response.status === 429) throw new SemanticScholarRateLimitError(Math.max(0, semanticScholarPauseUntil - Date.now()));
+      if (response.status === 429) throw new CitationRateLimitError(Math.max(0, semanticScholarPauseUntil - Date.now()));
       if (!response.ok) throw new Error(`Semantic Scholar HTTP ${response.status}`);
       const data = await response.json();
       data.forEach((item, i) => {
         const citationCount = item && Number.isFinite(item.citationCount) ? item.citationCount : null;
         chunk[i].citationCount = citationCount;
-        cache[chunk[i].id] = { citationCount, fetchedAt: Date.now() };
+        chunk[i].citationSource = Number.isFinite(citationCount) ? 'Semantic Scholar' : '';
+        cache[chunk[i].id] = { citationCount, citationSource: chunk[i].citationSource, fetchedAt: Date.now() };
         cacheChanged = true;
       });
+    }
+    const inspireCandidates = output.filter(isHepPaper).slice(0, options.inspireLimit || 8);
+    for (const paper of inspireCandidates) {
+      try {
+        const citationCount = await fetchInspireCitationCount(paper);
+        if (mergeCitation(paper, citationCount, 'INSPIRE')) {
+          cache[paper.id] = { citationCount: paper.citationCount, citationSource: paper.citationSource, fetchedAt: Date.now() };
+          cacheChanged = true;
+        }
+      } catch (error) {
+        if (error instanceof CitationRateLimitError) break;
+      }
     }
   } finally {
     if (cacheChanged) await persistCitationCache(cache);
@@ -157,21 +208,22 @@ async function persistReactions() { await chrome.storage.local.set({ paperReacti
 function reactionFor(paper) { return paperReactions[paper.id]?.reaction || ''; }
 function isSkipped(paper) { return reactionFor(paper) === 'skip'; }
 function visiblePapers(papers) { return papers.filter(paper => !isSkipped(paper)); }
-function reactionAffinity(paper) {
-  const categories = new Set(paper.categories || []);
+function reactionAffinity(paper, options = {}) {
+  const categories = new Set(options.includeCategories ? paper.categories || [] : []);
   const authors = new Set(paper.authors || []);
   return Object.values(paperReactions).reduce((score, record) => {
     if (!['interest', 'read'].includes(record.reaction)) return score;
     const weight = record.reaction === 'interest' ? 3 : 1;
     const reactedPaper = record.paper || {};
-    const categoryHit = (reactedPaper.categories || []).some(category => categories.has(category));
+    const categoryHit = options.includeCategories && (reactedPaper.categories || []).some(category => categories.has(category));
     const authorHit = (reactedPaper.authors || []).some(author => authors.has(author));
     return score + (categoryHit ? weight : 0) + (authorHit ? weight * 2 : 0);
   }, 0);
 }
 function rankForTimeline(papers, modeName) {
+  if (modeName === 'random') return papers.sort(() => Math.random() - 0.5);
   return papers.sort((a, b) => {
-    const affinity = reactionAffinity(b) - reactionAffinity(a);
+    const affinity = reactionAffinity(b, { includeCategories: true }) - reactionAffinity(a, { includeCategories: true });
     if (affinity) return affinity;
     if (modeName === 'classics') return (b.citationCount ?? -1) - (a.citationCount ?? -1);
     if (modeName === 'latest') return new Date(b.published) - new Date(a.published);
@@ -252,7 +304,10 @@ function renderPaper(paper, extra = {}) {
   fragment.querySelector('.pdf').href = `https://arxiv.org/pdf/${baseArxivId(paper.id)}`;
   save.textContent = savedPapers[paper.id] ? '保存済み ★' : '保存';
   const citation = fragment.querySelector('.citation-count');
-  if (Number.isFinite(paper.citationCount)) { citation.hidden = false; citation.textContent = `${paper.citationCount.toLocaleString()} citations`; }
+  if (Number.isFinite(paper.citationCount)) {
+    citation.hidden = false;
+    citation.textContent = `${paper.citationCount.toLocaleString()} citations${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
+  }
   if (extra.classic) fragment.querySelector('.classic-badge').hidden = false;
   renderDiscoveryBadges(card, paper, extra);
   updateReactionButtons(card, paper);
@@ -287,7 +342,7 @@ async function loadLatest() {
     rankForTimeline(visiblePapers(result.papers), 'latest').forEach(p => renderPaper(p));
     start += result.papers.length; exhausted = result.papers.length < settings.batchSize;
     exhausted ? showStatus('ここまでです。') : hideStatus();
-  } catch (e) { showStatus(`読み込みに失敗しました: ${e.message}`); }
+  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? 'arXivが一時的に不安定です。少し待ってから更新してください。' : `読み込みに失敗しました: ${e.message}`); }
   finally { loading = false; }
 }
 
@@ -312,9 +367,9 @@ async function loadFilteredRandom(modeName) {
       randomSeen.add(`${modeName}:${offset}`);
       const result = await fetchPapers(apiUrl({ search_query: query, start: offset, max_results: Math.min(pageSize, available), sortBy: 'submittedDate', sortOrder: 'descending' }));
       let enriched;
-      try { enriched = await addCitationCounts(result.papers, { chunkSize: pageSize }); }
+      try { enriched = await addCitationCounts(result.papers, { chunkSize: pageSize, inspireLimit: modeName === 'classics' ? 12 : 6 }); }
       catch (error) {
-        if (error instanceof SemanticScholarRateLimitError) { rateLimited = true; break; }
+        if (error instanceof CitationRateLimitError) { rateLimited = true; break; }
         if (range.min > 0 || range.max < Infinity) throw error;
         enriched = result.papers.map(p => ({ ...p, citationCount: null }));
       }
@@ -328,7 +383,7 @@ async function loadFilteredRandom(modeName) {
     else if (!accepted.length) showStatus('条件に合う論文を見つけられませんでした。期間または引用数を緩めてください。');
     else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
     else hideStatus();
-  } catch (e) { showStatus(`読み込みに失敗しました: ${e.message}`); }
+  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? 'arXivが一時的に不安定です。少し待ってからもう一度お試しください。' : `読み込みに失敗しました: ${e.message}`); }
   finally { loading = false; }
 }
 
