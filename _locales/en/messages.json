@@ -15,6 +15,9 @@
   "tabClassics": { "message": "Classics" },
   "tabSaved": { "message": "Saved" },
   "field": { "message": "Field" },
+  "classicsEraTabsLabel": { "message": "Classics eras" },
+  "classicsEraSettings": { "message": "Settings" },
+  "classicsEra2020Now": { "message": "2020-now" },
   "searchLabel": { "message": "Search arXiv" },
   "searchPlaceholder": { "message": "generalized symmetry" },
   "searchSubmit": { "message": "Search" },
@@ -109,6 +112,6 @@
   "searchIntro": { "message": "Search arXiv directly by keyword. Advanced arXiv queries such as cat:hep-th or au:Witten also work." },
   "searchIntroWithQuery": { "message": "Search results for \"$query$\".", "placeholders": { "query": { "content": "$1" } } },
   "randomIntro": { "message": "Showing random papers in $field$ that match the date and citation filters. You can change the filters in Settings.", "placeholders": { "field": { "content": "$1" } } },
-  "classicsIntroArxiv": { "message": "Searching arXiv candidates for highly cited papers in $field$.", "placeholders": { "field": { "content": "$1" } } },
-  "classicsIntroInspire": { "message": "Searching INSPIRE first for highly cited papers in $field$.", "placeholders": { "field": { "content": "$1" } } }
+  "classicsIntroArxiv": { "message": "Searching arXiv candidates for highly cited papers in $field$ from $era$.", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
+  "classicsIntroInspire": { "message": "Searching INSPIRE first for highly cited papers in $field$ from $era$.", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } }
 }

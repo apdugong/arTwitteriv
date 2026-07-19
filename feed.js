@@ -4,6 +4,7 @@ let selectedField = '';
 let explorationQuery = '';
 let explorationLabel = '';
 let searchText = '';
+let selectedClassicsEra = 'settings';
 let start = 0;
 let loading = false;
 let exhausted = false;
@@ -25,7 +26,17 @@ const fieldControl = document.querySelector('#fieldControl');
 const searchForm = document.querySelector('#searchForm');
 const searchInput = document.querySelector('#searchInput');
 const shuffleButton = document.querySelector('#shuffleButton');
+const classicsEraTabs = document.querySelector('#classicsEraTabs');
 const modeIntro = document.querySelector('#modeIntro');
+const CLASSICS_ERAS = [
+  { id: 'settings', labelKey: 'classicsEraSettings' },
+  { id: '1991_1999', label: '1991-1999', start: '1991-01-01', end: '1999-12-31' },
+  { id: '2000_2004', label: '2000-2004', start: '2000-01-01', end: '2004-12-31' },
+  { id: '2005_2009', label: '2005-2009', start: '2005-01-01', end: '2009-12-31' },
+  { id: '2010_2014', label: '2010-2014', start: '2010-01-01', end: '2014-12-31' },
+  { id: '2015_2019', label: '2015-2019', start: '2015-01-01', end: '2019-12-31' },
+  { id: '2020_now', labelKey: 'classicsEra2020Now', start: '2020-01-01', end: '' }
+];
 
 function text(node, selector) { return node.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() || ''; }
 function baseArxivId(value) { return String(value || '').split('/abs/').pop().replace(/v\d+$/i, ''); }
@@ -70,6 +81,21 @@ function arxivDate(date, end = false) {
 }
 function datedQuery(query, startDate, endDate) {
   return `(${query}) AND submittedDate:[${arxivDate(startDate)} TO ${arxivDate(endDate, true)}]`;
+}
+function currentClassicsEra() {
+  return CLASSICS_ERAS.find(era => era.id === selectedClassicsEra) || CLASSICS_ERAS[0];
+}
+function classicsEraLabel(era = currentClassicsEra()) {
+  return era.labelKey ? i18n(era.labelKey) : era.label;
+}
+function classicsDateRange() {
+  const era = currentClassicsEra();
+  if (era.start) return { startDate: era.start, endDate: era.end };
+  return { startDate: settings.classicsStartDate, endDate: settings.classicsEndDate };
+}
+function timelineDateRange(modeName) {
+  if (modeName === 'classics') return classicsDateRange();
+  return { startDate: settings.randomStartDate, endDate: settings.randomEndDate };
 }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function isRetryableArxivStatus(status) { return [500, 502, 503, 504].includes(status); }
@@ -124,9 +150,10 @@ function inspireCitationQuery(range) {
 }
 function inspireClassicsQuery() {
   const range = citationRange('classics');
+  const dates = classicsDateRange();
   return [
     inspireTextQuery(activeQuery()),
-    inspireDateQuery(settings.classicsStartDate, settings.classicsEndDate),
+    inspireDateQuery(dates.startDate, dates.endDate),
     inspireCitationQuery(range)
   ].filter(Boolean).join(' and ');
 }
@@ -509,8 +536,8 @@ async function loadFilteredRandom(modeName) {
   if (loading || mode !== modeName) return;
   loading = true; showStatus(modeName === 'classics' ? i18n('classicsSearching') : i18n('randomSearching'));
   try {
-    const prefix = modeName === 'classics' ? 'classics' : 'random';
-    const query = datedQuery(activeQuery(), settings[`${prefix}StartDate`], settings[`${prefix}EndDate`]);
+    const dates = timelineDateRange(modeName);
+    const query = datedQuery(activeQuery(), dates.startDate, dates.endDate);
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
     if (!available) { showStatus(i18n('noPapersForFieldPeriod')); return; }
@@ -556,12 +583,13 @@ function updateIntro() {
   if (explorationQuery && mode !== 'search') modeIntro.textContent = i18n('explorationIntro', explorationLabel);
   else if (mode === 'search') modeIntro.textContent = searchText ? i18n('searchIntroWithQuery', searchText) : i18n('searchIntro');
   else if (mode === 'random') modeIntro.textContent = i18n('randomIntro', currentField().label);
-  else if (mode === 'classics') modeIntro.textContent = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', currentField().label) : i18n('classicsIntroInspire', currentField().label);
+  else if (mode === 'classics') modeIntro.textContent = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', [currentField().label, classicsEraLabel()]) : i18n('classicsIntroInspire', [currentField().label, classicsEraLabel()]);
   else modeIntro.hidden = true;
 }
 function reloadMode() {
   feed.replaceChildren(); start = 0; exhausted = false; updateIntro();
   shuffleButton.hidden = !['random', 'classics'].includes(mode);
+  classicsEraTabs.hidden = mode !== 'classics';
   fieldControl.hidden = mode === 'search';
   fieldControl.style.display = mode === 'search' ? 'none' : '';
   searchForm.hidden = mode !== 'search';
@@ -581,6 +609,25 @@ function populateFields() {
   fieldSelect.replaceChildren();
   settings.fields.forEach(field => {
     const option = document.createElement('option'); option.value = field.id; option.textContent = field.label; fieldSelect.appendChild(option);
+  });
+}
+function renderClassicsEraTabs() {
+  classicsEraTabs.replaceChildren();
+  CLASSICS_ERAS.forEach(era => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'era-tab';
+    button.dataset.era = era.id;
+    button.textContent = classicsEraLabel(era);
+    button.classList.toggle('active', era.id === selectedClassicsEra);
+    button.addEventListener('click', async () => {
+      selectedClassicsEra = era.id;
+      await chrome.storage.local.set({ lastClassicsEra: selectedClassicsEra });
+      randomSeen.clear();
+      renderClassicsEraTabs();
+      if (mode === 'classics') reloadMode();
+    });
+    classicsEraTabs.appendChild(button);
   });
 }
 fieldSelect.addEventListener('change', () => { selectedField = fieldSelect.value; explorationQuery = ''; explorationLabel = ''; randomSeen.clear(); reloadMode(); });
@@ -608,9 +655,12 @@ new IntersectionObserver(entries => {
   await i18nReady;
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   if (!Array.isArray(settings.fields) || !settings.fields.length) settings.fields = BUILTIN_FIELDS;
-  searchText = (await chrome.storage.local.get({ lastSearchText: '' })).lastSearchText;
+  const localState = await chrome.storage.local.get({ lastSearchText: '', lastClassicsEra: 'settings' });
+  searchText = localState.lastSearchText;
+  selectedClassicsEra = CLASSICS_ERAS.some(era => era.id === localState.lastClassicsEra) ? localState.lastClassicsEra : 'settings';
   searchInput.value = searchText;
   populateFields();
+  renderClassicsEraTabs();
   selectedField = settings.fields.some(f => f.id === settings.defaultField) ? settings.defaultField : settings.fields[0].id;
   fieldSelect.value = selectedField;
   await loadSaved(); await loadReactions(); reloadMode();

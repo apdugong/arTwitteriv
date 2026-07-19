@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.17] - 2026-07-19
+- Added era tabs to the classics timeline for switching among settings, 1990s, five-year buckets, and 2020-now.
+
 ## [0.4.16] - 2026-07-19
 - Added separate default field presets for `cat:cond-mat` and `cat:cond-mat.str-el`.
 - Added an undo action after restoring default field presets.

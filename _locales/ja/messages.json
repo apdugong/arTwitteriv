@@ -15,6 +15,9 @@
   "tabClassics": { "message": "名著" },
   "tabSaved": { "message": "保存済み" },
   "field": { "message": "分野" },
+  "classicsEraTabsLabel": { "message": "名著の年代" },
+  "classicsEraSettings": { "message": "設定期間" },
+  "classicsEra2020Now": { "message": "2020年以降" },
   "searchLabel": { "message": "arXiv検索" },
   "searchPlaceholder": { "message": "generalized symmetry" },
   "searchSubmit": { "message": "検索" },
@@ -109,6 +112,6 @@
   "searchIntro": { "message": "キーワードでarXivを直接検索できます。cat:hep-th や au:Witten のようなarXiv検索式も使えます。" },
   "searchIntroWithQuery": { "message": "「$query$」の検索結果です。", "placeholders": { "query": { "content": "$1" } } },
   "randomIntro": { "message": "期間・引用数の条件に合う「$field$」の論文をランダムに流します。条件は設定画面で変更できます。", "placeholders": { "field": { "content": "$1" } } },
-  "classicsIntroArxiv": { "message": "「$field$」の高被引用論文をarXiv候補から探します。", "placeholders": { "field": { "content": "$1" } } },
-  "classicsIntroInspire": { "message": "「$field$」の高被引用論文をINSPIRE優先で探します。", "placeholders": { "field": { "content": "$1" } } }
+  "classicsIntroArxiv": { "message": "「$field$」の「$era$」の高被引用論文をarXiv候補から探します。", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
+  "classicsIntroInspire": { "message": "「$field$」の「$era$」の高被引用論文をINSPIRE優先で探します。", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } }
 }

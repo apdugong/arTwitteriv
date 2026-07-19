@@ -11,6 +11,7 @@ The default interface and documentation are in English. A Japanese Chrome locale
 - Search tab for ad-hoc keyword searches or advanced arXiv queries
 - Random timeline filtered by field, date range, and citation-count range
 - Classics timeline that searches for highly cited papers at runtime instead of using a fixed list
+- Era tabs in the classics timeline for switching between the configured range, 1990s, five-year buckets, and 2020-now
 - INSPIRE-first classics search with an arXiv-based fallback
 - Runtime citation counts from Semantic Scholar and, for high-energy physics papers, INSPIRE
 - Editable field tabs with a display name and arXiv query

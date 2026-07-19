@@ -89,6 +89,10 @@ if (DEFAULT_SETTINGS.classicsStartDate !== '1991-01-01') throw new Error('classi
 if (DEFAULT_SETTINGS.classicsEndDate !== '2012-12-31') throw new Error('classics end date must target old-school arXiv-era papers');
 if (DEFAULT_SETTINGS.classicsMinCitations !== 200) throw new Error('classics minimum citations must be 200');
 if (DEFAULT_SETTINGS.classicsMaxCitations !== 5000) throw new Error('classics maximum citations must be 5000');
+const feedSource = await readFile(path.join(root, 'feed.js'), 'utf8');
+for (const eraId of ['1991_1999', '2000_2004', '2005_2009', '2010_2014', '2015_2019', '2020_now']) {
+  if (!feedSource.includes(`id: '${eraId}'`)) throw new Error(`missing classics era: ${eraId}`);
+}
 
 const baseArxivId = value => String(value || '').split('/abs/').pop().replace(/v\d+$/i, '');
 const versionedIds = [
