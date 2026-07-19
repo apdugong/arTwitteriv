@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS = {
   fields: BUILTIN_FIELDS,
   defaultField: 'generalized',
   authorFilter: '',
+  citationSourceMode: 'auto',
   batchSize: 20,
   randomStartDate: '1991-01-01',
   randomEndDate: '',

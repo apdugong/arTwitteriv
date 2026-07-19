@@ -106,6 +106,10 @@ function cachedCitationCount(record, now = Date.now()) {
 function cachedCitationSource(record, now = Date.now()) {
   return cachedCitationCount(record, now) === undefined ? '' : record.citationSource || '';
 }
+function citationMode() { return settings.citationSourceMode || 'auto'; }
+function citationCacheId(paper) { return `${citationMode()}:${paper.id}`; }
+function usesSemanticScholar() { return ['auto', 'semantic'].includes(citationMode()); }
+function usesInspire() { return ['auto', 'inspire'].includes(citationMode()); }
 function isHepPaper(paper) {
   return (paper.categories || []).some(category => /^hep-/.test(category));
 }
@@ -141,13 +145,13 @@ async function addCitationCounts(papers, options = {}) {
   const output = papers.map(p => ({ ...p, citationCount: null }));
   const missing = [];
   output.forEach(paper => {
-    const cached = cachedCitationCount(cache[paper.id], now);
+    const cached = cachedCitationCount(cache[citationCacheId(paper)], now);
     if (cached === undefined) missing.push(paper);
-    else { paper.citationCount = cached; paper.citationSource = cachedCitationSource(cache[paper.id], now); }
+    else { paper.citationCount = cached; paper.citationSource = cachedCitationSource(cache[citationCacheId(paper)], now); }
   });
   let cacheChanged = false;
   try {
-    for (let offset = 0; offset < missing.length; offset += chunkSize) {
+    for (let offset = 0; usesSemanticScholar() && offset < missing.length; offset += chunkSize) {
       const chunk = missing.slice(offset, offset + chunkSize);
       let response;
       for (let attempt = 0; attempt < 2; attempt++) {
@@ -169,16 +173,16 @@ async function addCitationCounts(papers, options = {}) {
         const citationCount = item && Number.isFinite(item.citationCount) ? item.citationCount : null;
         chunk[i].citationCount = citationCount;
         chunk[i].citationSource = Number.isFinite(citationCount) ? 'Semantic Scholar' : '';
-        cache[chunk[i].id] = { citationCount, citationSource: chunk[i].citationSource, fetchedAt: Date.now() };
+        cache[citationCacheId(chunk[i])] = { citationCount, citationSource: chunk[i].citationSource, fetchedAt: Date.now() };
         cacheChanged = true;
       });
     }
-    const inspireCandidates = output.filter(isHepPaper).slice(0, options.inspireLimit || 8);
+    const inspireCandidates = usesInspire() ? output.filter(isHepPaper).slice(0, options.inspireLimit || 8) : [];
     for (const paper of inspireCandidates) {
       try {
         const citationCount = await fetchInspireCitationCount(paper);
         if (mergeCitation(paper, citationCount, 'INSPIRE')) {
-          cache[paper.id] = { citationCount: paper.citationCount, citationSource: paper.citationSource, fetchedAt: Date.now() };
+          cache[citationCacheId(paper)] = { citationCount: paper.citationCount, citationSource: paper.citationSource, fetchedAt: Date.now() };
           cacheChanged = true;
         }
       } catch (error) {

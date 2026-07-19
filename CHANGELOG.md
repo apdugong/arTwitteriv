@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.9] - 2026-07-18
+- Added a setting to choose automatic, Semantic Scholar-only, or INSPIRE-only citation counts.
+
 ## [0.4.8] - 2026-07-18
 - Added INSPIRE citation-count supplementation for high-energy physics papers.
 
