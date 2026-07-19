@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,32 +10,32 @@
   <header class="topbar">
     <div>
       <div class="brand">arTwitteriv</div>
-      <div class="subtitle">論文が流れてくるだけのタイムライン</div>
+      <div class="subtitle" data-i18n="feedSubtitle">A timeline where papers simply flow by.</div>
     </div>
     <div class="header-actions">
-      <button id="refreshButton" class="secondary">更新</button>
-      <button id="optionsButton" class="secondary">設定</button>
+      <button id="refreshButton" class="secondary" data-i18n="refresh">Refresh</button>
+      <button id="optionsButton" class="secondary" data-i18n="settings">Settings</button>
     </div>
   </header>
 
   <main>
-    <nav class="feed-tabs" aria-label="表示切替">
-      <button data-mode="latest" class="tab active">新着</button>
-      <button data-mode="random" class="tab">ランダム</button>
-      <button data-mode="classics" class="tab">名著</button>
-      <button data-mode="saved" class="tab">保存済み</button>
+    <nav class="feed-tabs" aria-label="Timeline views" data-i18n-aria-label="feedTabsLabel">
+      <button data-mode="latest" class="tab active" data-i18n="tabLatest">Latest</button>
+      <button data-mode="random" class="tab" data-i18n="tabRandom">Random</button>
+      <button data-mode="classics" class="tab" data-i18n="tabClassics">Classics</button>
+      <button data-mode="saved" class="tab" data-i18n="tabSaved">Saved</button>
     </nav>
 
     <section id="feedControls" class="feed-controls">
       <label>
-        分野
+        <span data-i18n="field">Field</span>
         <select id="fieldSelect"></select>
       </label>
-      <button id="shuffleButton" class="secondary compact" hidden>別の論文を流す</button>
+      <button id="shuffleButton" class="secondary compact" hidden data-i18n="shufflePapers">Show Different Papers</button>
     </section>
 
     <section id="modeIntro" class="mode-intro" hidden></section>
-    <section id="status" class="status">新着を読み込み中…</section>
+    <section id="status" class="status" data-i18n="loadingLatest">Loading latest papers...</section>
     <section id="feed" class="feed" aria-live="polite"></section>
     <div id="sentinel" class="sentinel" aria-hidden="true"></div>
   </main>
@@ -46,23 +46,23 @@
       <div class="paper-content">
         <div class="paper-meta">
           <span class="primary-category"></span><span>·</span><span class="date"></span>
-          <span class="classic-badge" hidden>高被引用</span><span class="citation-count" hidden></span>
+          <span class="classic-badge" hidden data-i18n="classicBadge">Highly cited</span><span class="citation-count" hidden></span>
         </div>
         <h2 class="title"></h2>
         <p class="authors"></p>
         <div class="discovery-badges" hidden></div>
         <p class="curator-note" hidden></p>
         <p class="summary collapsed"></p>
-        <div class="reaction-actions" aria-label="論文への反応">
-          <button class="interest reaction-button" type="button">気になる</button>
-          <button class="read reaction-button" type="button">読んだ</button>
-          <button class="skip reaction-button" type="button">スキップ</button>
+        <div class="reaction-actions" aria-label="Paper reactions" data-i18n-aria-label="paperReactionsLabel">
+          <button class="interest reaction-button" type="button" data-i18n="reactionInterest">Interested</button>
+          <button class="read reaction-button" type="button" data-i18n="reactionRead">Read</button>
+          <button class="skip reaction-button" type="button" data-i18n="reactionSkip">Skip</button>
         </div>
         <div class="card-actions">
-          <button class="readMore text-button">全文</button>
-          <button class="save text-button">保存</button>
-          <button class="same-author text-button" type="button">同じ著者</button>
-          <button class="same-field text-button" type="button">同じ分野</button>
+          <button class="readMore text-button" data-i18n="readMore">Read more</button>
+          <button class="save text-button" data-i18n="save">Save</button>
+          <button class="same-author text-button" type="button" data-i18n="sameAuthor">Same author</button>
+          <button class="same-field text-button" type="button" data-i18n="sameField">Same field</button>
           <a class="abstract text-link" target="_blank" rel="noopener noreferrer">arXiv</a>
           <a class="pdf text-link" target="_blank" rel="noopener noreferrer">PDF</a>
         </div>
@@ -70,6 +70,7 @@
     </article>
   </template>
 
+  <script src="i18n.js"></script>
   <script src="presets.js"></script>
   <script src="feed.js"></script>
 </body>

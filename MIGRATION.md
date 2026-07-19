@@ -1,13 +1,13 @@
-# GitHub・Codex移行手順
+# GitHub And Codex Migration Notes
 
-## 1. ローカルGitを開始する
+## 1. Initialize Local Git
 
 ```bash
 cd /path/to/arTwitteriv
 ./setup_git.sh
 ```
 
-コミット時に氏名・メールアドレスの設定を求められた場合：
+If Git asks for a name or email address when committing, configure them first:
 
 ```bash
 git config --global user.name "YOUR NAME"
@@ -15,54 +15,56 @@ git config --global user.email "YOUR_EMAIL@example.com"
 ./setup_git.sh
 ```
 
-## 2. GitHubへ置く
+For privacy on public GitHub repositories, prefer a GitHub noreply address.
 
-### GitHub CLIを使う方法
+## 2. Put The Repository On GitHub
 
-GitHub CLIでログイン済みなら、リポジトリのフォルダ内で実行します。
+### With GitHub CLI
+
+If you are signed in with GitHub CLI, run this from the repository folder:
 
 ```bash
 gh repo create arTwitteriv --private --source=. --remote=origin --push
 ```
 
-公開リポジトリにする場合は `--private` を `--public` に変えます。
+Change `--private` to `--public` when you are ready to publish.
 
-### GitHubウェブサイトを使う方法
+### With The GitHub Website
 
-1. GitHubで空のリポジトリ `arTwitteriv` を作る
-2. README、`.gitignore`、licenseをGitHub側では追加しない
-3. 表示されたURLを使い、ローカルで次を実行する
+1. Create an empty GitHub repository named `arTwitteriv`.
+2. Do not add a README, `.gitignore`, or license on GitHub.
+3. Use the URL shown by GitHub:
 
 ```bash
 git remote add origin https://github.com/YOUR_USERNAME/arTwitteriv.git
 git push -u origin main
 ```
 
-## 3. Codexで開く
+## 3. Open The Project In Codex
 
-1. CodexへChatGPTアカウントでサインインする
-2. プロジェクト追加画面で、このローカルの `arTwitteriv` フォルダを選ぶ
-3. 最初の依頼として、下記のプロンプトを送る
+1. Sign in to Codex with your ChatGPT account.
+2. Add this local `arTwitteriv` folder as a project.
+3. For the first review, you can ask Codex:
 
 ```text
-このリポジトリは、arXiv論文をSNS風タイムラインで表示するManifest V3のChrome拡張 arTwitteriv です。
+This repository is arTwitteriv, a Manifest V3 Chrome extension that displays arXiv papers in a social-media-style timeline.
 
-最初に AGENTS.md、README.md、CHANGELOG.md とコード全体を読み、現状を監査してください。
+First, read AGENTS.md, README.md, CHANGELOG.md, and the codebase, then audit the current state.
 
-1. 現在実装されている機能を整理する
-2. manifest、HTML、JavaScript間の参照切れを検査する
-3. npm test を実行する
-4. arXivのabstract/PDF URLから v1、v2 などの版番号が確実に除去されるか確認する
-5. 分野プリセット編集、期間・引用数指定のランダム機能、引用数ベースの名著機能を確認する
-6. Semantic Scholarのレート制限、取得失敗、未収録論文に対する挙動を確認する
-7. 問題を重要度順に報告する
+1. Summarize the currently implemented features.
+2. Check for broken references among manifest, HTML, and JavaScript files.
+3. Run npm test.
+4. Confirm arXiv version suffixes such as v1 and v2 are reliably removed from abstract and PDF URLs.
+5. Confirm editable field presets, random date/citation filters, and citation-based classics behavior.
+6. Confirm Semantic Scholar behavior for rate limits, fetch failures, and papers missing from the index.
+7. Report problems in severity order.
 
-この最初の作業では、大規模なリファクタリングを行わないでください。明白な小さな不具合だけ修正し、変更した場合は CHANGELOG.md を更新してください。
+For this first pass, do not perform a large refactor. Fix only obvious small bugs, and update CHANGELOG.md if you change user-visible behavior.
 ```
 
-## 4. 以後の作業方法
+## 4. Ongoing Workflow
 
-1機能ずつCodexに依頼し、作業後に差分を確認します。
+Ask Codex for one focused change at a time, then review the result:
 
 ```bash
 git status
@@ -70,7 +72,7 @@ git diff
 npm test
 ```
 
-問題なければコミットします。
+If the diff looks good:
 
 ```bash
 git add .
@@ -78,11 +80,11 @@ git commit -m "Describe the change"
 git push
 ```
 
-安定版にはタグを付けます。
+For stable releases:
 
 ```bash
-git tag v0.4.1
-git push origin v0.4.1
+git tag v0.4.11
+git push origin v0.4.11
 ```
 
-Chromeでの実動作確認は自動検査だけでは代替できません。主要変更後は `chrome://extensions` から拡張を再読み込みし、各タイムラインと設定保存を確認してください。
+Automated checks do not replace manual Chrome testing. After significant changes, reload the extension from `chrome://extensions` and verify the popup, each timeline, settings persistence, and latest-version abstract/PDF links.

@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "arTwitteriv",
-  "version": "0.4.10",
-  "description": "カスタム分野、新着、期間・引用数指定のランダム、高被引用論文を流すarXivタイムラインです。",
+  "name": "__MSG_extName__",
+  "version": "0.4.11",
+  "default_locale": "en",
+  "description": "__MSG_extDescription__",
   "permissions": [
     "storage",
     "tabs"
@@ -14,7 +15,7 @@
     "https://inspirehep.net/*"
   ],
   "action": {
-    "default_title": "arTwitterivを開く",
+    "default_title": "__MSG_extActionTitle__",
     "default_popup": "popup.html"
   },
   "background": {

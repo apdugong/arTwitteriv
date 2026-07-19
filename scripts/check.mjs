@@ -9,7 +9,20 @@ const manifestPath = path.join(root, 'manifest.json');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 
 if (manifest.manifest_version !== 3) throw new Error('manifest_version must be 3');
-if (manifest.name !== 'arTwitteriv') throw new Error('manifest name must be arTwitteriv');
+if (manifest.default_locale !== 'en') throw new Error('manifest default_locale must be en');
+
+const localeNames = ['en', 'ja'];
+const locales = {};
+for (const localeName of localeNames) {
+  locales[localeName] = JSON.parse(await readFile(path.join(root, '_locales', localeName, 'messages.json'), 'utf8'));
+}
+
+function localizedMessage(value, localeName = manifest.default_locale) {
+  const match = /^__MSG_([A-Za-z0-9_]+)__$/.exec(value || '');
+  return match ? locales[localeName][match[1]]?.message || '' : value;
+}
+
+if (localizedMessage(manifest.name) !== 'arTwitteriv') throw new Error('manifest name must resolve to arTwitteriv');
 
 const referenced = [
   manifest.action?.default_popup,
@@ -31,7 +44,7 @@ for (const relative of htmlFiles) {
   }
 }
 
-const jsFiles = ['background.js', 'feed.js', 'options.js', 'popup.js', 'presets.js'];
+const jsFiles = ['background.js', 'feed.js', 'i18n.js', 'options.js', 'popup.js', 'presets.js'];
 for (const relative of jsFiles) {
   const result = spawnSync(process.execPath, ['--check', path.join(root, relative)], {
     encoding: 'utf8',
@@ -39,6 +52,25 @@ for (const relative of jsFiles) {
   if (result.status !== 0) {
     process.stderr.write(result.stderr);
     throw new Error(`Syntax check failed: ${relative}`);
+  }
+}
+
+const usedMessageKeys = new Set();
+for (const value of [manifest.name, manifest.description, manifest.action?.default_title]) {
+  const match = /^__MSG_([A-Za-z0-9_]+)__$/.exec(value || '');
+  if (match) usedMessageKeys.add(match[1]);
+}
+for (const relative of htmlFiles) {
+  const html = await readFile(path.join(root, relative), 'utf8');
+  for (const [, key] of html.matchAll(/\bdata-i18n(?:-[a-z-]+)?="([^"]+)"/g)) usedMessageKeys.add(key);
+}
+for (const relative of jsFiles) {
+  const js = await readFile(path.join(root, relative), 'utf8');
+  for (const [, key] of js.matchAll(/\bi18n\(\s*['"]([A-Za-z0-9_]+)['"]/g)) usedMessageKeys.add(key);
+}
+for (const localeName of localeNames) {
+  for (const key of usedMessageKeys) {
+    if (!locales[localeName][key]?.message) throw new Error(`Missing ${localeName} i18n message: ${key}`);
   }
 }
 
@@ -52,4 +84,4 @@ for (const [input, expected] of versionedIds) {
   if (baseArxivId(input) !== expected) throw new Error(`arXiv version suffix was not removed from ${input}`);
 }
 
-console.log(`OK: ${manifest.name} ${manifest.version}`);
+console.log(`OK: ${localizedMessage(manifest.name)} ${manifest.version}`);

@@ -2,6 +2,11 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.11] - 2026-07-19
+- Made English the default extension locale and added Japanese UI localization.
+- Changed built-in field preset labels to English for new installs and restored defaults.
+- Updated public documentation with English-first README and migration notes.
+
 ## [0.4.10] - 2026-07-19
 - Made the classics timeline use INSPIRE search first, with an arXiv-based fallback and a configurable classics search source.
 

@@ -1,44 +1,63 @@
 # arTwitteriv
 
-arXiv論文を、SNSの投稿のような縦型タイムラインで眺めるManifest V3のChrome拡張です。
+arTwitteriv is a Manifest V3 Chrome extension for browsing arXiv papers in a social-media-style vertical timeline.
 
-## 現在の機能
+The default interface and documentation are in English. A Japanese Chrome locale is also included for the extension UI.
 
-- 新着タイムライン
-- 指定分野・期間・引用数範囲から選ぶランダムタイムライン
-- 固定リストを使わず、その都度取得した論文を引用数で絞る「名著」タイムライン
-- 分野タブの追加・編集・削除
-- 保存済みタイムライン
-- arXivの版番号を除いたURLでabstractとPDFの最新版を開く
+## Features
 
-引用数にはSemantic Scholar Academic Graph APIを利用します。APIのレート制限や未収録論文により、引用数を取得できない場合があります。
+- Latest-paper timeline for editable arXiv field presets
+- Random timeline filtered by field, date range, and citation-count range
+- Classics timeline that searches for highly cited papers at runtime instead of using a fixed list
+- INSPIRE-first classics search with an arXiv-based fallback
+- Runtime citation counts from Semantic Scholar and, for high-energy physics papers, INSPIRE
+- Editable field tabs with a display name and arXiv query
+- Optional author-name filter
+- Saved-paper timeline
+- Lightweight reactions: interested, read, and skip
+- Abstract and PDF links that strip arXiv version suffixes such as `v1` so they open the latest version
 
-## Chromeへの読み込み
+Citation counts are fetched from external APIs at runtime. Semantic Scholar and INSPIRE may rate-limit requests, fail temporarily, or have no record for some papers; arTwitteriv surfaces those partial failures instead of silently showing an empty feed as success.
 
-1. Chromeで `chrome://extensions` を開く
-2. 「デベロッパーモード」をオンにする
-3. 「パッケージ化されていない拡張機能を読み込む」を押す
-4. この `arTwitteriv` フォルダを選ぶ
+## Load In Chrome
 
-## 検査
+1. Open `chrome://extensions` in Chrome.
+2. Enable Developer mode.
+3. Click "Load unpacked".
+4. Select this `arTwitteriv` folder.
 
-Node.js 18以降を用意し、次を実行します。
+## Settings
+
+Open the extension options page to edit:
+
+- Field tabs and their arXiv queries
+- Default field
+- Optional author filter
+- Citation source mode: automatic, Semantic Scholar only, or INSPIRE only
+- Random timeline date and citation filters
+- Classics timeline search source, date range, and citation filters
+
+Settings and saved papers are stored in Chrome storage, not in files in this repository.
+
+## Checks
+
+Use Node.js 18 or later and run:
 
 ```bash
 npm test
 ```
 
-外部パッケージへの依存はないため、`npm install` は不要です。
+There are no external npm package dependencies, so `npm install` is not required.
 
-## Gitの開始
+## Git Setup
 
-ターミナルでこのフォルダへ移動し、同梱スクリプトを実行します。
+From this folder, run:
 
 ```bash
 ./setup_git.sh
 ```
 
-手動で行う場合は次のとおりです。
+Or initialize manually:
 
 ```bash
 git init
@@ -47,13 +66,17 @@ git add .
 git commit -m "Initial import of arTwitteriv"
 ```
 
-GitHubへ公開または非公開で置く方法とCodexへの移行手順は、`MIGRATION.md` を参照してください。
+See [MIGRATION.md](MIGRATION.md) for GitHub and Codex handoff notes.
 
-Disclaimer
+## 日本語メモ
+
+arTwitteriv は、arXiv論文をSNS風の縦型タイムラインで眺めるChrome拡張です。英語を既定にしていますが、日本語Chrome向けのUIロケールも含めています。Chromeで設定を変更しても、その内容は `chrome.storage` に保存されるだけで、GitHub上のファイルには反映されません。
+
+## Disclaimer
 
 arTwitteriv is an independent, unofficial open-source project.
 
-It is not affiliated with, endorsed by, or sponsored by arXiv, X Corp., or Twitter. “arXiv” and related marks belong to their respective owners.
+It is not affiliated with, endorsed by, or sponsored by arXiv, X Corp., or Twitter. "arXiv" and related marks belong to their respective owners.
 
 This project has been developed substantially with the assistance of generative AI, including AI-generated code, documentation, and design suggestions. The resulting software is reviewed and maintained by the project owner, but it may still contain errors, incomplete implementations, or unintended behavior.
 

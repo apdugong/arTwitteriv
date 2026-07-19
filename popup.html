@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,9 +8,10 @@
 </head>
 <body class="popup-body">
   <h1>arTwitteriv</h1>
-  <p>興味分野の論文タイムラインを開きます。</p>
-  <button id="openFeed" class="primary">タイムラインを開く</button>
-  <button id="openOptions" class="secondary">検索語を設定</button>
+  <p data-i18n="popupLead">Open a paper timeline for the fields you care about.</p>
+  <button id="openFeed" class="primary" data-i18n="openTimeline">Open Timeline</button>
+  <button id="openOptions" class="secondary" data-i18n="configureSearches">Configure Searches</button>
+  <script src="i18n.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

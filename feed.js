@@ -29,10 +29,10 @@ function entryId(entry) { return baseArxivId(text(entry, 'id')); }
 function formatDate(value) {
   const date = new Date(value);
   const days = Math.floor((Date.now() - date.getTime()) / 86400000);
-  if (days === 0) return '今日';
-  if (days === 1) return '昨日';
-  if (days > 1 && days < 7) return `${days}日前`;
-  return new Intl.DateTimeFormat('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
+  if (days === 0) return i18n('today');
+  if (days === 1) return i18n('yesterday');
+  if (days > 1 && days < 7) return i18n('daysAgo', days);
+  return new Intl.DateTimeFormat(i18nLocale(), { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
 }
 function paperAgeDays(paper) { return Math.floor((Date.now() - new Date(paper.published).getTime()) / 86400000); }
 function currentField() { return settings.fields.find(field => field.id === selectedField) || settings.fields[0]; }
@@ -63,7 +63,7 @@ function retryAfterMs(response) {
 }
 class CitationRateLimitError extends Error {
   constructor(waitMs) {
-    super('引用数APIのレート制限中です。少し待ってからもう一度お試しください。');
+    super(i18n('citationApiRateLimit'));
     this.waitMs = waitMs;
   }
 }
@@ -163,7 +163,7 @@ async function fetchPapers(url) {
   }
   if (!response.ok) throw new Error(`arXiv HTTP ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), 'application/xml');
-  if (doc.querySelector('parsererror')) throw new Error('arXiv応答の解析に失敗しました');
+  if (doc.querySelector('parsererror')) throw new Error(i18n('arxivParseFailed'));
   return { papers: [...doc.querySelectorAll('entry')].map(parseEntry), total: Number(text(doc, 'totalResults')) || 0 };
 }
 async function loadCitationCache() {
@@ -323,24 +323,24 @@ async function setReaction(paper, reaction, card) {
   await persistReactions();
   if (reactionFor(paper) === 'skip') {
     card.remove();
-    if (mode === 'saved' && !feed.children.length) showStatus('保存した論文はまだありません。');
+    if (mode === 'saved' && !feed.children.length) showStatus(i18n('savedEmpty'));
     return;
   }
   updateReactionButtons(card, paper);
 }
 function updateReactionButtons(card, paper) {
   const reaction = reactionFor(paper);
-  labelReaction(card.querySelector('.interest'), '気になる済み', '気になる', reaction === 'interest');
-  labelReaction(card.querySelector('.read'), '読了済み', '読んだ', reaction === 'read');
-  labelReaction(card.querySelector('.skip'), 'スキップ済み', 'スキップ', reaction === 'skip');
+  labelReaction(card.querySelector('.interest'), i18n('reactionInterestActive'), i18n('reactionInterest'), reaction === 'interest');
+  labelReaction(card.querySelector('.read'), i18n('reactionReadActive'), i18n('reactionRead'), reaction === 'read');
+  labelReaction(card.querySelector('.skip'), i18n('reactionSkipActive'), i18n('reactionSkip'), reaction === 'skip');
 }
 function discoveryBadges(paper, extra = {}) {
   const badges = [];
   const ageDays = paperAgeDays(paper);
-  if (extra.classic || (Number.isFinite(paper.citationCount) && paper.citationCount >= Number(settings.classicsMinCitations || 0))) badges.push('高引用');
-  if (ageDays >= 0 && ageDays <= 7) badges.push('新着');
-  if (reactionAffinity(paper) > 0) badges.push('関心に近い');
-  if (savedPapers[paper.id]) badges.push('保存済み');
+  if (extra.classic || (Number.isFinite(paper.citationCount) && paper.citationCount >= Number(settings.classicsMinCitations || 0))) badges.push(i18n('badgeHighlyCited'));
+  if (ageDays >= 0 && ageDays <= 7) badges.push(i18n('badgeNew'));
+  if (reactionAffinity(paper) > 0) badges.push(i18n('badgeCloseToInterests'));
+  if (savedPapers[paper.id]) badges.push(i18n('badgeSaved'));
   return badges.slice(0, 3);
 }
 function renderDiscoveryBadges(card, paper, extra = {}) {
@@ -380,11 +380,12 @@ function renderPaper(paper, extra = {}) {
   summaryEl.textContent = paper.summary;
   fragment.querySelector('.abstract').href = `https://arxiv.org/abs/${baseArxivId(paper.id)}`;
   fragment.querySelector('.pdf').href = `https://arxiv.org/pdf/${baseArxivId(paper.id)}`;
-  save.textContent = savedPapers[paper.id] ? '保存済み ★' : '保存';
+  save.textContent = savedPapers[paper.id] ? i18n('savedStar') : i18n('save');
   const citation = fragment.querySelector('.citation-count');
   if (Number.isFinite(paper.citationCount)) {
     citation.hidden = false;
-    citation.textContent = `${paper.citationCount.toLocaleString()} citations${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
+    const citationLabel = i18n('citationCount', paper.citationCount.toLocaleString(i18nLocale()));
+    citation.textContent = `${citationLabel}${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
   }
   if (extra.classic) fragment.querySelector('.classic-badge').hidden = false;
   renderDiscoveryBadges(card, paper, extra);
@@ -393,18 +394,18 @@ function renderPaper(paper, extra = {}) {
   fragment.querySelector('.read').addEventListener('click', () => setReaction(paper, 'read', card));
   fragment.querySelector('.skip').addEventListener('click', () => setReaction(paper, 'skip', card));
   sameAuthor.hidden = !paper.authors[0];
-  sameAuthor.addEventListener('click', () => explore(`au:"${arxivQuoted(paper.authors[0])}"`, `著者 ${paper.authors[0]}`));
+  sameAuthor.addEventListener('click', () => explore(`au:"${arxivQuoted(paper.authors[0])}"`, i18n('authorExploreLabel', paper.authors[0])));
   sameField.hidden = !paper.categories[0];
-  sameField.addEventListener('click', () => explore(`cat:${paper.categories[0]}`, `分野 ${paper.categories[0]}`));
+  sameField.addEventListener('click', () => explore(`cat:${paper.categories[0]}`, i18n('fieldExploreLabel', paper.categories[0])));
   readMore.addEventListener('click', () => {
     const collapsed = summaryEl.classList.toggle('collapsed');
-    readMore.textContent = collapsed ? '全文' : '折りたたむ';
+    readMore.textContent = collapsed ? i18n('readMore') : i18n('collapse');
   });
   save.addEventListener('click', async () => {
-    if (savedPapers[paper.id]) { delete savedPapers[paper.id]; save.textContent = '保存'; if (mode === 'saved') card.remove(); }
-    else { savedPapers[paper.id] = paper; save.textContent = '保存済み ★'; }
+    if (savedPapers[paper.id]) { delete savedPapers[paper.id]; save.textContent = i18n('save'); if (mode === 'saved') card.remove(); }
+    else { savedPapers[paper.id] = paper; save.textContent = i18n('savedStar'); }
     await persistSaved();
-    if (mode === 'saved' && !feed.children.length) showStatus('保存した論文はまだありません。');
+    if (mode === 'saved' && !feed.children.length) showStatus(i18n('savedEmpty'));
   });
   feed.appendChild(fragment);
 }
@@ -413,14 +414,14 @@ function hideStatus() { status.hidden = true; }
 
 async function loadLatest() {
   if (loading || exhausted || mode !== 'latest') return;
-  loading = true; showStatus(start ? 'さらに読み込み中…' : '新着を読み込み中…');
+  loading = true; showStatus(start ? i18n('loadingMore') : i18n('loadingLatest'));
   try {
     const result = await fetchPapers(apiUrl({ search_query: activeQuery(), start, max_results: settings.batchSize, sortBy: 'submittedDate', sortOrder: 'descending' }));
-    if (!result.papers.length) { exhausted = true; showStatus('該当する論文がありません。'); return; }
+    if (!result.papers.length) { exhausted = true; showStatus(i18n('noMatchingPapers')); return; }
     rankForTimeline(visiblePapers(result.papers), 'latest').forEach(p => renderPaper(p));
     start += result.papers.length; exhausted = result.papers.length < settings.batchSize;
-    exhausted ? showStatus('ここまでです。') : hideStatus();
-  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? 'arXivが一時的に不安定です。少し待ってから更新してください。' : `読み込みに失敗しました: ${e.message}`); }
+    exhausted ? showStatus(i18n('endOfTimeline')) : hideStatus();
+  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? i18n('arxivTemporaryRefresh') : i18n('loadFailed', e.message)); }
   finally { loading = false; }
 }
 
@@ -433,7 +434,7 @@ async function loadClassics() {
 
 async function loadInspireClassics(allowFallback) {
   if (loading || mode !== 'classics') return true;
-  loading = true; showStatus('INSPIREで高被引用論文を探しています…');
+  loading = true; showStatus(i18n('inspireSearching'));
   try {
     const query = inspireClassicsQuery();
     const target = Math.min(settings.batchSize, 10);
@@ -442,7 +443,7 @@ async function loadInspireClassics(allowFallback) {
     const available = Math.min(inspireTotal(probe), 500);
     if (!available) {
       if (allowFallback) return false;
-      showStatus('INSPIREで条件に合う論文が見つかりませんでした。');
+      showStatus(i18n('inspireNoPapers'));
       return true;
     }
     const accepted = [];
@@ -457,26 +458,26 @@ async function loadInspireClassics(allowFallback) {
       });
     }
     accepted.forEach(paper => renderPaper(paper, { classic: true }));
-    if (!accepted.length) showStatus('INSPIREで条件に合う論文が見つかりませんでした。条件を緩めるか検索元をarXivベースにしてください。');
-    else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
+    if (!accepted.length) showStatus(i18n('inspireNoPapersAdvice'));
+    else if (accepted.length < target) showStatus(i18n('partialFoundMore', accepted.length));
     else hideStatus();
     return true;
   } catch (error) {
     if (allowFallback && !(error instanceof CitationRateLimitError)) return false;
-    showStatus(error instanceof CitationRateLimitError ? 'INSPIREの制限中です。少し待ってからもう一度お試しください。' : `読み込みに失敗しました: ${error.message}`);
+    showStatus(error instanceof CitationRateLimitError ? i18n('inspireRateLimit') : i18n('loadFailed', error.message));
     return true;
   } finally { loading = false; }
 }
 
 async function loadFilteredRandom(modeName) {
   if (loading || mode !== modeName) return;
-  loading = true; showStatus(modeName === 'classics' ? '高被引用論文を探しています…' : '条件に合う論文をランダムに探しています…');
+  loading = true; showStatus(modeName === 'classics' ? i18n('classicsSearching') : i18n('randomSearching'));
   try {
     const prefix = modeName === 'classics' ? 'classics' : 'random';
     const query = datedQuery(activeQuery(), settings[`${prefix}StartDate`], settings[`${prefix}EndDate`]);
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
-    if (!available) { showStatus('期間・分野に該当する論文がありません。'); return; }
+    if (!available) { showStatus(i18n('noPapersForFieldPeriod')); return; }
     const target = modeName === 'classics' ? Math.min(settings.batchSize, 10) : settings.batchSize;
     const accepted = [];
     const range = citationRange(modeName);
@@ -500,25 +501,25 @@ async function loadFilteredRandom(modeName) {
       });
     }
     accepted.forEach(p => renderPaper(p, { classic: modeName === 'classics' }));
-    if (rateLimited && accepted.length) showStatus(`${accepted.length}件見つかりました。引用数APIの制限中なので、少し待ってから続きを探します。`);
-    else if (rateLimited) showStatus('引用数APIの制限中です。少し待ってからもう一度お試しください。');
-    else if (!accepted.length) showStatus('条件に合う論文を見つけられませんでした。期間または引用数を緩めてください。');
-    else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
+    if (rateLimited && accepted.length) showStatus(i18n('citationApiPartial', accepted.length));
+    else if (rateLimited) showStatus(i18n('citationApiRateLimit'));
+    else if (!accepted.length) showStatus(i18n('noRandomMatch'));
+    else if (accepted.length < target) showStatus(i18n('partialFoundMore', accepted.length));
     else hideStatus();
-  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? 'arXivが一時的に不安定です。少し待ってからもう一度お試しください。' : `読み込みに失敗しました: ${e.message}`); }
+  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? i18n('arxivTemporaryRetry') : i18n('loadFailed', e.message)); }
   finally { loading = false; }
 }
 
 function showSaved() {
   const papers = visiblePapers(Object.values(savedPapers)).sort((a, b) => new Date(b.published) - new Date(a.published));
-  if (!papers.length) showStatus('保存した論文はまだありません。');
+  if (!papers.length) showStatus(i18n('savedEmpty'));
   else { hideStatus(); papers.forEach(p => renderPaper(p)); }
 }
 function updateIntro() {
   modeIntro.hidden = false;
-  if (explorationQuery) modeIntro.textContent = `「${explorationLabel}」を探索中です。分野を選び直すと通常のタイムラインに戻ります。`;
-  else if (mode === 'random') modeIntro.textContent = `期間・引用数の条件に合う「${currentField().label}」の論文をランダムに流します。条件は設定画面で変更できます。`;
-  else if (mode === 'classics') modeIntro.textContent = `「${currentField().label}」の高被引用論文を${(settings.classicsSearchSource || 'auto') === 'arxiv' ? 'arXiv候補から' : 'INSPIRE優先で'}探します。`;
+  if (explorationQuery) modeIntro.textContent = i18n('explorationIntro', explorationLabel);
+  else if (mode === 'random') modeIntro.textContent = i18n('randomIntro', currentField().label);
+  else if (mode === 'classics') modeIntro.textContent = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', currentField().label) : i18n('classicsIntroInspire', currentField().label);
   else modeIntro.hidden = true;
 }
 function reloadMode() {
