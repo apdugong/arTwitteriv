@@ -563,6 +563,7 @@ function reloadMode() {
   feed.replaceChildren(); start = 0; exhausted = false; updateIntro();
   shuffleButton.hidden = !['random', 'classics'].includes(mode);
   fieldControl.hidden = mode === 'search';
+  fieldControl.style.display = mode === 'search' ? 'none' : '';
   searchForm.hidden = mode !== 'search';
   fieldSelect.disabled = mode === 'saved';
   if (mode === 'latest') loadLatest();

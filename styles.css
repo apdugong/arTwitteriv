@@ -66,6 +66,7 @@ main { max-width: 680px; margin: 0 auto; border-left: 1px solid #e4e8ec; border-
 .feed-tabs { grid-template-columns: repeat(5, 1fr); }
 .feed-controls { display:flex; align-items:end; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid #e4e8ec; background:#fafbfc; }
 .feed-controls label { display:grid; gap:4px; color:#647180; font-size:12px; font-weight:700; }
+#fieldControl[hidden] { display:none; }
 .feed-controls select, .feed-controls input, .settings-form select { min-width:230px; border:1px solid #bbc5d0; border-radius:9px; padding:8px 10px; background:white; font:inherit; }
 .search-control { display:flex; align-items:end; gap:8px; flex:1; }
 .search-control[hidden] { display:none; }

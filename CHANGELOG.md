@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.14] - 2026-07-19
+- Ensured the field selector is hidden on the Search timeline.
+
 ## [0.4.13] - 2026-07-19
 - Added a Search timeline tab for ad-hoc keyword searches and advanced arXiv queries without editing field presets.
 
