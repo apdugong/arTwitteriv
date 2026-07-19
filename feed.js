@@ -3,6 +3,7 @@ let mode = 'latest';
 let selectedField = '';
 let explorationQuery = '';
 let explorationLabel = '';
+let searchText = '';
 let start = 0;
 let loading = false;
 let exhausted = false;
@@ -20,6 +21,9 @@ const status = document.querySelector('#status');
 const template = document.querySelector('#paperTemplate');
 const sentinel = document.querySelector('#sentinel');
 const fieldSelect = document.querySelector('#fieldSelect');
+const fieldControl = document.querySelector('#fieldControl');
+const searchForm = document.querySelector('#searchForm');
+const searchInput = document.querySelector('#searchInput');
 const shuffleButton = document.querySelector('#shuffleButton');
 const modeIntro = document.querySelector('#modeIntro');
 
@@ -43,6 +47,22 @@ function currentQuery() {
   return author ? `(${query}) AND au:"${author}"` : query;
 }
 function activeQuery() { return explorationQuery || currentQuery(); }
+function looksLikeArxivQuery(value) {
+  return /\b(?:all|ti|au|abs|cat|id|jr|rn|co):/i.test(value) || /\b(?:AND|OR|ANDNOT)\b/.test(value) || /[()]/.test(value);
+}
+function tokenizeSearch(value) {
+  return String(value || '').match(/"[^"]+"|\S+/g) || [];
+}
+function searchInputQuery(value) {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!raw) return '';
+  if (looksLikeArxivQuery(raw)) return raw;
+  return tokenizeSearch(raw)
+    .map(term => arxivQuoted(term.replace(/^"|"$/g, '')))
+    .filter(Boolean)
+    .map(term => term.includes(' ') ? `all:"${term}"` : `all:${term}`)
+    .join(' AND ');
+}
 function apiUrl(params) { return `https://export.arxiv.org/api/query?${new URLSearchParams(params)}`; }
 function arxivDate(date, end = false) {
   if (!date) return end ? '299912312359' : '199101010000';
@@ -299,6 +319,7 @@ function reactionAffinity(paper, options = {}) {
   }, 0);
 }
 function rankForTimeline(papers, modeName) {
+  if (modeName === 'search') return papers;
   if (modeName === 'random') return papers.sort(() => Math.random() - 0.5);
   return papers.sort((a, b) => {
     const affinity = reactionAffinity(b, { includeCategories: true }) - reactionAffinity(a, { includeCategories: true });
@@ -425,6 +446,21 @@ async function loadLatest() {
   finally { loading = false; }
 }
 
+async function loadSearch() {
+  if (loading || exhausted || mode !== 'search') return;
+  const query = searchInputQuery(searchText);
+  if (!query) { showStatus(i18n('searchEmpty')); return; }
+  loading = true; showStatus(start ? i18n('loadingMore') : i18n('searchingPapers'));
+  try {
+    const result = await fetchPapers(apiUrl({ search_query: query, start, max_results: settings.batchSize, sortBy: 'relevance', sortOrder: 'descending' }));
+    if (!result.papers.length) { exhausted = true; showStatus(i18n('searchNoResults')); return; }
+    rankForTimeline(visiblePapers(result.papers), 'search').forEach(p => renderPaper(p));
+    start += result.papers.length; exhausted = result.papers.length < settings.batchSize;
+    exhausted ? showStatus(i18n('endOfTimeline')) : hideStatus();
+  } catch (e) { showStatus(e.message.startsWith('arXiv HTTP 5') ? i18n('arxivTemporaryRetry') : i18n('loadFailed', e.message)); }
+  finally { loading = false; }
+}
+
 async function loadClassics() {
   const source = settings.classicsSearchSource || 'auto';
   if (source === 'arxiv') { loadFilteredRandom('classics'); return; }
@@ -517,7 +553,8 @@ function showSaved() {
 }
 function updateIntro() {
   modeIntro.hidden = false;
-  if (explorationQuery) modeIntro.textContent = i18n('explorationIntro', explorationLabel);
+  if (explorationQuery && mode !== 'search') modeIntro.textContent = i18n('explorationIntro', explorationLabel);
+  else if (mode === 'search') modeIntro.textContent = searchText ? i18n('searchIntroWithQuery', searchText) : i18n('searchIntro');
   else if (mode === 'random') modeIntro.textContent = i18n('randomIntro', currentField().label);
   else if (mode === 'classics') modeIntro.textContent = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', currentField().label) : i18n('classicsIntroInspire', currentField().label);
   else modeIntro.hidden = true;
@@ -525,8 +562,11 @@ function updateIntro() {
 function reloadMode() {
   feed.replaceChildren(); start = 0; exhausted = false; updateIntro();
   shuffleButton.hidden = !['random', 'classics'].includes(mode);
+  fieldControl.hidden = mode === 'search';
+  searchForm.hidden = mode !== 'search';
   fieldSelect.disabled = mode === 'saved';
   if (mode === 'latest') loadLatest();
+  else if (mode === 'search') loadSearch();
   else if (mode === 'random') loadFilteredRandom('random');
   else if (mode === 'classics') loadClassics();
   else showSaved();
@@ -544,12 +584,21 @@ function populateFields() {
 }
 fieldSelect.addEventListener('change', () => { selectedField = fieldSelect.value; explorationQuery = ''; explorationLabel = ''; randomSeen.clear(); reloadMode(); });
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchMode(tab.dataset.mode)));
+searchForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  searchText = searchInput.value.trim();
+  await chrome.storage.local.set({ lastSearchText: searchText });
+  mode = 'search';
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
+  reloadMode();
+});
 shuffleButton.addEventListener('click', () => { feed.replaceChildren(); randomSeen.clear(); reloadMode(); });
 document.querySelector('#refreshButton').addEventListener('click', reloadMode);
 document.querySelector('#optionsButton').addEventListener('click', () => chrome.runtime.openOptionsPage());
 new IntersectionObserver(entries => {
   if (!entries[0].isIntersecting) return;
   if (mode === 'latest') loadLatest();
+  if (mode === 'search' && feed.children.length) loadSearch();
   if (mode === 'random' && feed.children.length) loadFilteredRandom('random');
   if (mode === 'classics' && feed.children.length) loadClassics();
 }, { rootMargin: '500px' }).observe(sentinel);
@@ -558,6 +607,8 @@ new IntersectionObserver(entries => {
   await i18nReady;
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   if (!Array.isArray(settings.fields) || !settings.fields.length) settings.fields = BUILTIN_FIELDS;
+  searchText = (await chrome.storage.local.get({ lastSearchText: '' })).lastSearchText;
+  searchInput.value = searchText;
   populateFields();
   selectedField = settings.fields.some(f => f.id === settings.defaultField) ? settings.defaultField : settings.fields[0].id;
   fieldSelect.value = selectedField;

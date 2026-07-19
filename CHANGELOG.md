@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.13] - 2026-07-19
+- Added a Search timeline tab for ad-hoc keyword searches and advanced arXiv queries without editing field presets.
+
 ## [0.4.12] - 2026-07-19
 - Added an in-extension language setting for English, Japanese, or automatic Chrome-language selection.
 

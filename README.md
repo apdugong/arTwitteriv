@@ -7,6 +7,7 @@ The default interface and documentation are in English. A Japanese Chrome locale
 ## Features
 
 - Latest-paper timeline for editable arXiv field presets
+- Search tab for ad-hoc keyword searches or advanced arXiv queries
 - Random timeline filtered by field, date range, and citation-count range
 - Classics timeline that searches for highly cited papers at runtime instead of using a fixed list
 - INSPIRE-first classics search with an arXiv-based fallback

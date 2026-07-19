@@ -21,16 +21,24 @@
   <main>
     <nav class="feed-tabs" aria-label="Timeline views" data-i18n-aria-label="feedTabsLabel">
       <button data-mode="latest" class="tab active" data-i18n="tabLatest">Latest</button>
+      <button data-mode="search" class="tab" data-i18n="tabSearch">Search</button>
       <button data-mode="random" class="tab" data-i18n="tabRandom">Random</button>
       <button data-mode="classics" class="tab" data-i18n="tabClassics">Classics</button>
       <button data-mode="saved" class="tab" data-i18n="tabSaved">Saved</button>
     </nav>
 
     <section id="feedControls" class="feed-controls">
-      <label>
+      <label id="fieldControl">
         <span data-i18n="field">Field</span>
         <select id="fieldSelect"></select>
       </label>
+      <form id="searchForm" class="search-control" hidden>
+        <label>
+          <span data-i18n="searchLabel">Search arXiv</span>
+          <input id="searchInput" type="search" placeholder="generalized symmetry" data-i18n-placeholder="searchPlaceholder">
+        </label>
+        <button id="searchButton" class="primary compact" type="submit" data-i18n="searchSubmit">Search</button>
+      </form>
       <button id="shuffleButton" class="secondary compact" hidden data-i18n="shufflePapers">Show Different Papers</button>
     </section>
 
