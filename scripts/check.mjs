@@ -81,6 +81,9 @@ const categoryQueryPattern = /^cat:[A-Za-z0-9.-]+(?:\s+OR\s+cat:[A-Za-z0-9.-]+)*
 if (!BUILTIN_FIELDS.every(field => categoryQueryPattern.test(field.query))) {
   throw new Error('built-in field presets must use only arXiv category queries');
 }
+const fieldById = Object.fromEntries(BUILTIN_FIELDS.map(field => [field.id, field]));
+if (fieldById.cond_mat?.query !== 'cat:cond-mat') throw new Error('built-in fields must include cat:cond-mat');
+if (fieldById.cond_mat_str_el?.query !== 'cat:cond-mat.str-el') throw new Error('built-in fields must include cat:cond-mat.str-el');
 if (DEFAULT_SETTINGS.defaultField !== 'hep_th') throw new Error('default field must be hep-th');
 if (DEFAULT_SETTINGS.classicsStartDate !== '1991-01-01') throw new Error('classics start date must target old-school arXiv-era papers');
 if (DEFAULT_SETTINGS.classicsEndDate !== '2012-12-31') throw new Error('classics end date must target old-school arXiv-era papers');

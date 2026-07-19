@@ -14,6 +14,7 @@ The default interface and documentation are in English. A Japanese Chrome locale
 - INSPIRE-first classics search with an arXiv-based fallback
 - Runtime citation counts from Semantic Scholar and, for high-energy physics papers, INSPIRE
 - Editable field tabs with a display name and arXiv query
+- Undo for accidental field-preset default restoration before closing the options page
 - Optional author-name filter
 - Saved-paper timeline
 - Lightweight reactions: interested, read, and skip

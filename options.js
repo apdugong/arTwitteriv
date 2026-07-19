@@ -2,7 +2,9 @@ const form = document.querySelector('#settingsForm');
 const savedMessage = document.querySelector('#savedMessage');
 const fieldsContainer = document.querySelector('#fieldsContainer');
 const defaultField = document.querySelector('#defaultField');
+const undoRestoreFields = document.querySelector('#undoRestoreFields');
 let fields = [];
+let restoreSnapshot = null;
 
 function newId() { return `field_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`; }
 function renderFields() {
@@ -35,7 +37,23 @@ function setValue(id, value) { document.querySelector(`#${id}`).value = value ??
   ['uiLanguage','authorFilter','citationSourceMode','batchSize','randomStartDate','randomEndDate','randomMinCitations','randomMaxCitations','classicsSearchSource','classicsStartDate','classicsEndDate','classicsMinCitations','classicsMaxCitations'].forEach(id => setValue(id, settings[id]));
 })();
 document.querySelector('#addField').addEventListener('click', () => { fields.push({ id: newId(), label: i18n('newFieldLabel'), query: 'cat:hep-th' }); renderFields(); });
-document.querySelector('#restoreFields').addEventListener('click', () => { fields = structuredClone(BUILTIN_FIELDS); renderFields(); });
+document.querySelector('#restoreFields').addEventListener('click', () => {
+  restoreSnapshot = { fields: structuredClone(fields), defaultField: defaultField.value };
+  fields = structuredClone(BUILTIN_FIELDS);
+  renderFields();
+  defaultField.value = fields.some(field => field.id === DEFAULT_SETTINGS.defaultField) ? DEFAULT_SETTINGS.defaultField : fields[0].id;
+  undoRestoreFields.hidden = false;
+  savedMessage.textContent = i18n('defaultsRestoredPending');
+});
+undoRestoreFields.addEventListener('click', () => {
+  if (!restoreSnapshot) return;
+  fields = structuredClone(restoreSnapshot.fields);
+  renderFields();
+  defaultField.value = fields.some(field => field.id === restoreSnapshot.defaultField) ? restoreSnapshot.defaultField : fields[0].id;
+  restoreSnapshot = null;
+  undoRestoreFields.hidden = true;
+  savedMessage.textContent = i18n('restoreUndone');
+});
 form.addEventListener('submit', async event => {
   event.preventDefault();
   const cleaned = fields.map(f => ({ id: f.id || newId(), label: f.label.trim(), query: f.query.trim() })).filter(f => f.label && f.query);

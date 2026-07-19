@@ -2,6 +2,10 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.16] - 2026-07-19
+- Added separate default field presets for `cat:cond-mat` and `cat:cond-mat.str-el`.
+- Added an undo action after restoring default field presets.
+
 ## [0.4.15] - 2026-07-19
 - Changed default field presets to arXiv category-based fields.
 - Tuned the default classics filters toward old-school arXiv-era high-energy theory papers.
