@@ -80,6 +80,80 @@ function parseEntry(entry) {
     pdfUrl: `https://arxiv.org/pdf/${id}`
   };
 }
+function inspireTextQuery(query) {
+  return String(query || '')
+    .replace(/\bcat:([A-Za-z0-9.-]+)/g, 'arxiv_eprints.categories:$1')
+    .replace(/\ball:"([^"]+)"/g, '"$1"')
+    .replace(/\ball:([^\s()]+)/g, '$1')
+    .replace(/\bau:"([^"]+)"/g, 'a $1')
+    .replace(/\bau:([^\s()]+)/g, 'a $1')
+    .replace(/\bAND\b/g, 'and')
+    .replace(/\bOR\b/g, 'or');
+}
+function inspireDateQuery(startDate, endDate) {
+  if (startDate && endDate) return `de ${startDate}->${endDate}`;
+  if (startDate) return `de > ${startDate}`;
+  if (endDate) return `de < ${endDate}`;
+  return '';
+}
+function inspireCitationQuery(range) {
+  if (range.min > 0 && range.max < Infinity) return `cited:${range.min}->${range.max}`;
+  if (range.min > 0) return `topcite ${range.min}+`;
+  if (range.max < Infinity) return `cited:0->${range.max}`;
+  return '';
+}
+function inspireClassicsQuery() {
+  const range = citationRange('classics');
+  return [
+    inspireTextQuery(activeQuery()),
+    inspireDateQuery(settings.classicsStartDate, settings.classicsEndDate),
+    inspireCitationQuery(range)
+  ].filter(Boolean).join(' and ');
+}
+function inspireSearchUrl(params) {
+  return `https://inspirehep.net/api/literature?${new URLSearchParams(params)}`;
+}
+function inspireTotal(result) {
+  const total = result?.hits?.total;
+  return typeof total === 'number' ? total : Number(total?.value || 0);
+}
+function parseInspirePaper(hit) {
+  const metadata = hit.metadata || {};
+  const arxiv = (metadata.arxiv_eprints || []).find(item => item.value);
+  if (!arxiv?.value) return null;
+  const citationCount = Number(metadata.citation_count);
+  return {
+    id: baseArxivId(arxiv.value),
+    title: metadata.titles?.find(item => item.title)?.title || 'Untitled',
+    summary: metadata.abstracts?.find(item => item.value)?.value || '',
+    authors: (metadata.authors || []).map(author => author.full_name).filter(Boolean),
+    categories: arxiv.categories || [],
+    published: metadata.earliest_date || '',
+    abstractUrl: `https://arxiv.org/abs/${baseArxivId(arxiv.value)}`,
+    pdfUrl: `https://arxiv.org/pdf/${baseArxivId(arxiv.value)}`,
+    citationCount: Number.isFinite(citationCount) ? citationCount : null,
+    citationSource: Number.isFinite(citationCount) ? 'INSPIRE' : ''
+  };
+}
+async function fetchInspireSearch(query, page, size) {
+  const waitMs = Math.max(0, inspirePauseUntil - Date.now());
+  if (waitMs) await sleep(waitMs);
+  const response = await fetch(inspireSearchUrl({
+    q: query,
+    sort: 'mostcited',
+    page,
+    size,
+    fields: 'titles,abstracts,authors.full_name,arxiv_eprints,citation_count,earliest_date'
+  }));
+  if (response.status === 429) {
+    const wait = retryAfterMs(response);
+    inspirePauseUntil = Date.now() + Math.max(wait, 5000);
+    throw new CitationRateLimitError(wait);
+  }
+  if (!response.ok) throw new Error(`INSPIRE HTTP ${response.status}`);
+  inspirePauseUntil = Date.now() + 400;
+  return response.json();
+}
 async function fetchPapers(url) {
   let response;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -350,6 +424,50 @@ async function loadLatest() {
   finally { loading = false; }
 }
 
+async function loadClassics() {
+  const source = settings.classicsSearchSource || 'auto';
+  if (source === 'arxiv') { loadFilteredRandom('classics'); return; }
+  const handled = await loadInspireClassics(source === 'auto');
+  if (!handled && mode === 'classics') loadFilteredRandom('classics');
+}
+
+async function loadInspireClassics(allowFallback) {
+  if (loading || mode !== 'classics') return true;
+  loading = true; showStatus('INSPIREで高被引用論文を探しています…');
+  try {
+    const query = inspireClassicsQuery();
+    const target = Math.min(settings.batchSize, 10);
+    const pageSize = 25;
+    const probe = await fetchInspireSearch(query, 1, 1);
+    const available = Math.min(inspireTotal(probe), 500);
+    if (!available) {
+      if (allowFallback) return false;
+      showStatus('INSPIREで条件に合う論文が見つかりませんでした。');
+      return true;
+    }
+    const accepted = [];
+    for (let attempt = 0; attempt < 5 && accepted.length < target; attempt++) {
+      let page = Math.floor(Math.random() * Math.max(1, Math.ceil(available / pageSize))) + 1;
+      for (let i = 0; i < 8 && randomSeen.has(`inspire:${page}`); i++) page = Math.floor(Math.random() * Math.max(1, Math.ceil(available / pageSize))) + 1;
+      randomSeen.add(`inspire:${page}`);
+      const result = await fetchInspireSearch(query, page, pageSize);
+      const papers = (result.hits?.hits || []).map(parseInspirePaper).filter(Boolean);
+      rankForTimeline(visiblePapers(papers), 'classics').forEach(paper => {
+        if (accepted.length < target && passesCitation(paper, citationRange('classics')) && !document.querySelector(`[data-id="${CSS.escape(paper.id)}"]`)) accepted.push(paper);
+      });
+    }
+    accepted.forEach(paper => renderPaper(paper, { classic: true }));
+    if (!accepted.length) showStatus('INSPIREで条件に合う論文が見つかりませんでした。条件を緩めるか検索元をarXivベースにしてください。');
+    else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
+    else hideStatus();
+    return true;
+  } catch (error) {
+    if (allowFallback && !(error instanceof CitationRateLimitError)) return false;
+    showStatus(error instanceof CitationRateLimitError ? 'INSPIREの制限中です。少し待ってからもう一度お試しください。' : `読み込みに失敗しました: ${error.message}`);
+    return true;
+  } finally { loading = false; }
+}
+
 async function loadFilteredRandom(modeName) {
   if (loading || mode !== modeName) return;
   loading = true; showStatus(modeName === 'classics' ? '高被引用論文を探しています…' : '条件に合う論文をランダムに探しています…');
@@ -382,8 +500,8 @@ async function loadFilteredRandom(modeName) {
       });
     }
     accepted.forEach(p => renderPaper(p, { classic: modeName === 'classics' }));
-    if (rateLimited && accepted.length) showStatus(`${accepted.length}件見つかりました。Semantic Scholarの制限中なので、少し待ってから続きを探します。`);
-    else if (rateLimited) showStatus('Semantic Scholarの制限中です。少し待ってからもう一度お試しください。');
+    if (rateLimited && accepted.length) showStatus(`${accepted.length}件見つかりました。引用数APIの制限中なので、少し待ってから続きを探します。`);
+    else if (rateLimited) showStatus('引用数APIの制限中です。少し待ってからもう一度お試しください。');
     else if (!accepted.length) showStatus('条件に合う論文を見つけられませんでした。期間または引用数を緩めてください。');
     else if (accepted.length < target) showStatus(`${accepted.length}件見つかりました。さらに読み込むと別の候補を探します。`);
     else hideStatus();
@@ -400,7 +518,7 @@ function updateIntro() {
   modeIntro.hidden = false;
   if (explorationQuery) modeIntro.textContent = `「${explorationLabel}」を探索中です。分野を選び直すと通常のタイムラインに戻ります。`;
   else if (mode === 'random') modeIntro.textContent = `期間・引用数の条件に合う「${currentField().label}」の論文をランダムに流します。条件は設定画面で変更できます。`;
-  else if (mode === 'classics') modeIntro.textContent = `固定リストではなく、「${currentField().label}」の論文を引用数でその都度選別して流します。`;
+  else if (mode === 'classics') modeIntro.textContent = `「${currentField().label}」の高被引用論文を${(settings.classicsSearchSource || 'auto') === 'arxiv' ? 'arXiv候補から' : 'INSPIRE優先で'}探します。`;
   else modeIntro.hidden = true;
 }
 function reloadMode() {
@@ -409,7 +527,7 @@ function reloadMode() {
   fieldSelect.disabled = mode === 'saved';
   if (mode === 'latest') loadLatest();
   else if (mode === 'random') loadFilteredRandom('random');
-  else if (mode === 'classics') loadFilteredRandom('classics');
+  else if (mode === 'classics') loadClassics();
   else showSaved();
 }
 function switchMode(next) {
@@ -431,7 +549,8 @@ document.querySelector('#optionsButton').addEventListener('click', () => chrome.
 new IntersectionObserver(entries => {
   if (!entries[0].isIntersecting) return;
   if (mode === 'latest') loadLatest();
-  if (['random', 'classics'].includes(mode) && feed.children.length) loadFilteredRandom(mode);
+  if (mode === 'random' && feed.children.length) loadFilteredRandom('random');
+  if (mode === 'classics' && feed.children.length) loadClassics();
 }, { rootMargin: '500px' }).observe(sentinel);
 
 (async () => {

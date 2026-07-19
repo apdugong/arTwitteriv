@@ -19,5 +19,6 @@ const DEFAULT_SETTINGS = {
   classicsStartDate: '1991-01-01',
   classicsEndDate: '',
   classicsMinCitations: 500,
-  classicsMaxCitations: ''
+  classicsMaxCitations: '',
+  classicsSearchSource: 'auto'
 };

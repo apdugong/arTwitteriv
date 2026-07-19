@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.10] - 2026-07-19
+- Made the classics timeline use INSPIRE search first, with an arXiv-based fallback and a configurable classics search source.
+
 ## [0.4.9] - 2026-07-18
 - Added a setting to choose automatic, Semantic Scholar-only, or INSPIRE-only citation counts.
 

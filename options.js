@@ -30,7 +30,7 @@ function setValue(id, value) { document.querySelector(`#${id}`).value = value ??
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   fields = structuredClone(Array.isArray(settings.fields) && settings.fields.length ? settings.fields : BUILTIN_FIELDS);
   renderFields(); defaultField.value = settings.defaultField;
-  ['authorFilter','citationSourceMode','batchSize','randomStartDate','randomEndDate','randomMinCitations','randomMaxCitations','classicsStartDate','classicsEndDate','classicsMinCitations','classicsMaxCitations'].forEach(id => setValue(id, settings[id]));
+  ['authorFilter','citationSourceMode','batchSize','randomStartDate','randomEndDate','randomMinCitations','randomMaxCitations','classicsSearchSource','classicsStartDate','classicsEndDate','classicsMinCitations','classicsMaxCitations'].forEach(id => setValue(id, settings[id]));
 })();
 document.querySelector('#addField').addEventListener('click', () => { fields.push({ id: newId(), label: '新しい分野', query: 'cat:hep-th' }); renderFields(); });
 document.querySelector('#restoreFields').addEventListener('click', () => { fields = structuredClone(BUILTIN_FIELDS); renderFields(); });
@@ -46,6 +46,7 @@ form.addEventListener('submit', async event => {
     batchSize: Number(document.querySelector('#batchSize').value),
     randomStartDate: document.querySelector('#randomStartDate').value, randomEndDate: document.querySelector('#randomEndDate').value,
     randomMinCitations: numberOrBlank('randomMinCitations'), randomMaxCitations: numberOrBlank('randomMaxCitations'),
+    classicsSearchSource: document.querySelector('#classicsSearchSource').value,
     classicsStartDate: document.querySelector('#classicsStartDate').value, classicsEndDate: document.querySelector('#classicsEndDate').value,
     classicsMinCitations: numberOrBlank('classicsMinCitations'), classicsMaxCitations: numberOrBlank('classicsMaxCitations')
   });
