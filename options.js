@@ -28,10 +28,11 @@ function renderDefaultOptions() {
 }
 function setValue(id, value) { document.querySelector(`#${id}`).value = value ?? ''; }
 (async () => {
+  await i18nReady;
   const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   fields = structuredClone(Array.isArray(settings.fields) && settings.fields.length ? settings.fields : BUILTIN_FIELDS);
   renderFields(); defaultField.value = settings.defaultField;
-  ['authorFilter','citationSourceMode','batchSize','randomStartDate','randomEndDate','randomMinCitations','randomMaxCitations','classicsSearchSource','classicsStartDate','classicsEndDate','classicsMinCitations','classicsMaxCitations'].forEach(id => setValue(id, settings[id]));
+  ['uiLanguage','authorFilter','citationSourceMode','batchSize','randomStartDate','randomEndDate','randomMinCitations','randomMaxCitations','classicsSearchSource','classicsStartDate','classicsEndDate','classicsMinCitations','classicsMaxCitations'].forEach(id => setValue(id, settings[id]));
 })();
 document.querySelector('#addField').addEventListener('click', () => { fields.push({ id: newId(), label: i18n('newFieldLabel'), query: 'cat:hep-th' }); renderFields(); });
 document.querySelector('#restoreFields').addEventListener('click', () => { fields = structuredClone(BUILTIN_FIELDS); renderFields(); });
@@ -40,8 +41,10 @@ form.addEventListener('submit', async event => {
   const cleaned = fields.map(f => ({ id: f.id || newId(), label: f.label.trim(), query: f.query.trim() })).filter(f => f.label && f.query);
   if (!cleaned.length) { savedMessage.textContent = i18n('validationNeedField'); return; }
   const numberOrBlank = id => document.querySelector(`#${id}`).value === '' ? '' : Number(document.querySelector(`#${id}`).value);
+  const uiLanguage = document.querySelector('#uiLanguage').value;
   await chrome.storage.sync.set({
     fields: cleaned, defaultField: cleaned.some(f => f.id === defaultField.value) ? defaultField.value : cleaned[0].id,
+    uiLanguage,
     authorFilter: document.querySelector('#authorFilter').value.trim(),
     citationSourceMode: document.querySelector('#citationSourceMode').value,
     batchSize: Number(document.querySelector('#batchSize').value),
@@ -51,5 +54,6 @@ form.addEventListener('submit', async event => {
     classicsStartDate: document.querySelector('#classicsStartDate').value, classicsEndDate: document.querySelector('#classicsEndDate').value,
     classicsMinCitations: numberOrBlank('classicsMinCitations'), classicsMaxCitations: numberOrBlank('classicsMaxCitations')
   });
+  await initI18n(uiLanguage);
   savedMessage.textContent = i18n('settingsSaved'); setTimeout(() => { savedMessage.textContent = ''; }, 1800);
 });

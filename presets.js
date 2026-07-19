@@ -9,6 +9,7 @@ const BUILTIN_FIELDS = [
 const DEFAULT_SETTINGS = {
   fields: BUILTIN_FIELDS,
   defaultField: 'generalized',
+  uiLanguage: 'en',
   authorFilter: '',
   citationSourceMode: 'auto',
   batchSize: 20,

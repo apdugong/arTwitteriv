@@ -31,6 +31,7 @@ Citation counts are fetched from external APIs at runtime. Semantic Scholar and 
 Open the extension options page to edit:
 
 - Field tabs and their arXiv queries
+- UI language: English, Japanese, or automatic Chrome-language selection
 - Default field
 - Optional author filter
 - Citation source mode: automatic, Semantic Scholar only, or INSPIRE only
@@ -70,7 +71,7 @@ See [MIGRATION.md](MIGRATION.md) for GitHub and Codex handoff notes.
 
 ## 日本語メモ
 
-arTwitteriv は、arXiv論文をSNS風の縦型タイムラインで眺めるChrome拡張です。英語を既定にしていますが、日本語Chrome向けのUIロケールも含めています。Chromeで設定を変更しても、その内容は `chrome.storage` に保存されるだけで、GitHub上のファイルには反映されません。
+arTwitteriv は、arXiv論文をSNS風の縦型タイムラインで眺めるChrome拡張です。英語を既定にしていますが、設定画面の Language から日本語に切り替えられます。Chromeで設定を変更しても、その内容は `chrome.storage` に保存されるだけで、GitHub上のファイルには反映されません。
 
 ## Disclaimer
 

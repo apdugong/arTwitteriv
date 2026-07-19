@@ -555,6 +555,7 @@ new IntersectionObserver(entries => {
 }, { rootMargin: '500px' }).observe(sentinel);
 
 (async () => {
+  await i18nReady;
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   if (!Array.isArray(settings.fields) || !settings.fields.length) settings.fields = BUILTIN_FIELDS;
   populateFields();

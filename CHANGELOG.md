@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.12] - 2026-07-19
+- Added an in-extension language setting for English, Japanese, or automatic Chrome-language selection.
+
 ## [0.4.11] - 2026-07-19
 - Made English the default extension locale and added Japanese UI localization.
 - Changed built-in field preset labels to English for new installs and restored defaults.
