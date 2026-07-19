@@ -1,14 +1,15 @@
 const BUILTIN_FIELDS = [
-  { id: 'generalized', label: 'Generalized Symmetry and Topological Phases', query: 'all:"generalized symmetry" OR all:"higher-form symmetry" OR all:"non-invertible symmetry" OR all:fracton OR all:"subsystem symmetry" OR all:"topological order"' },
-  { id: 'qft', label: 'Quantum Field Theory and Strings', query: 'cat:hep-th OR cat:hep-ph' },
-  { id: 'condensed', label: 'Condensed Matter Theory', query: 'cat:cond-mat.str-el OR cat:cond-mat.stat-mech OR cat:cond-mat.mes-hall' },
-  { id: 'quantum_info', label: 'Quantum Information and Computing', query: 'cat:quant-ph' },
-  { id: 'active', label: 'Active Matter and Stochastic Processes', query: 'all:"active matter" OR all:flocking OR all:"stochastic process" OR cat:cond-mat.soft' }
+  { id: 'hep_th', label: 'High Energy Physics - Theory', query: 'cat:hep-th' },
+  { id: 'hep_ph', label: 'High Energy Physics - Phenomenology', query: 'cat:hep-ph' },
+  { id: 'gr_qc', label: 'General Relativity and Quantum Cosmology', query: 'cat:gr-qc' },
+  { id: 'math_ph', label: 'Mathematical Physics', query: 'cat:math-ph' },
+  { id: 'cond_mat', label: 'Condensed Matter Theory', query: 'cat:cond-mat.str-el OR cat:cond-mat.stat-mech OR cat:cond-mat.mes-hall OR cat:cond-mat.soft' },
+  { id: 'quant_ph', label: 'Quantum Physics', query: 'cat:quant-ph' }
 ];
 
 const DEFAULT_SETTINGS = {
   fields: BUILTIN_FIELDS,
-  defaultField: 'generalized',
+  defaultField: 'hep_th',
   uiLanguage: 'en',
   authorFilter: '',
   citationSourceMode: 'auto',
@@ -18,8 +19,8 @@ const DEFAULT_SETTINGS = {
   randomMinCitations: 0,
   randomMaxCitations: '',
   classicsStartDate: '1991-01-01',
-  classicsEndDate: '',
-  classicsMinCitations: 500,
-  classicsMaxCitations: '',
+  classicsEndDate: '2012-12-31',
+  classicsMinCitations: 200,
+  classicsMaxCitations: 5000,
   classicsSearchSource: 'auto'
 };

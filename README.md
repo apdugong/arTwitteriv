@@ -7,6 +7,7 @@ The default interface and documentation are in English. A Japanese Chrome locale
 ## Features
 
 - Latest-paper timeline for editable arXiv field presets
+- Category-based default field presets using arXiv categories such as `cat:hep-th`
 - Search tab for ad-hoc keyword searches or advanced arXiv queries
 - Random timeline filtered by field, date range, and citation-count range
 - Classics timeline that searches for highly cited papers at runtime instead of using a fixed list
@@ -38,6 +39,8 @@ Open the extension options page to edit:
 - Citation source mode: automatic, Semantic Scholar only, or INSPIRE only
 - Random timeline date and citation filters
 - Classics timeline search source, date range, and citation filters
+
+The default classics settings are tuned for old-school arXiv-era high-energy theory discovery: `cat:hep-th`, papers from 1991 through 2012, and 200-5000 citations. Existing Chrome storage settings are preserved; use "Restore Defaults" or edit the options page if you want an existing install to adopt the new defaults.
 
 Settings and saved papers are stored in Chrome storage, not in files in this repository.
 

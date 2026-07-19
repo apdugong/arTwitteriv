@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import vm from 'node:vm';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const manifestPath = path.join(root, 'manifest.json');
@@ -73,6 +74,18 @@ for (const localeName of localeNames) {
     if (!locales[localeName][key]?.message) throw new Error(`Missing ${localeName} i18n message: ${key}`);
   }
 }
+
+const presetsSource = await readFile(path.join(root, 'presets.js'), 'utf8');
+const { BUILTIN_FIELDS, DEFAULT_SETTINGS } = vm.runInNewContext(`${presetsSource}; ({ BUILTIN_FIELDS, DEFAULT_SETTINGS });`);
+const categoryQueryPattern = /^cat:[A-Za-z0-9.-]+(?:\s+OR\s+cat:[A-Za-z0-9.-]+)*$/;
+if (!BUILTIN_FIELDS.every(field => categoryQueryPattern.test(field.query))) {
+  throw new Error('built-in field presets must use only arXiv category queries');
+}
+if (DEFAULT_SETTINGS.defaultField !== 'hep_th') throw new Error('default field must be hep-th');
+if (DEFAULT_SETTINGS.classicsStartDate !== '1991-01-01') throw new Error('classics start date must target old-school arXiv-era papers');
+if (DEFAULT_SETTINGS.classicsEndDate !== '2012-12-31') throw new Error('classics end date must target old-school arXiv-era papers');
+if (DEFAULT_SETTINGS.classicsMinCitations !== 200) throw new Error('classics minimum citations must be 200');
+if (DEFAULT_SETTINGS.classicsMaxCitations !== 5000) throw new Error('classics maximum citations must be 5000');
 
 const baseArxivId = value => String(value || '').split('/abs/').pop().replace(/v\d+$/i, '');
 const versionedIds = [
