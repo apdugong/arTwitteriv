@@ -90,9 +90,11 @@ if (DEFAULT_SETTINGS.classicsEndDate !== '2012-12-31') throw new Error('classics
 if (DEFAULT_SETTINGS.classicsMinCitations !== 200) throw new Error('classics minimum citations must be 200');
 if (DEFAULT_SETTINGS.classicsMaxCitations !== 5000) throw new Error('classics maximum citations must be 5000');
 const feedSource = await readFile(path.join(root, 'feed.js'), 'utf8');
-for (const eraId of ['1991_1999', '2000_2004', '2005_2009', '2010_2014', '2015_2019', '2020_now']) {
+for (const eraId of ['1970_1979', '1980_1989', '1990_1994', '1995_1999', '2000_2004', '2005_2009', '2010_2014', '2015_2019', '2020_now']) {
   if (!feedSource.includes(`id: '${eraId}'`)) throw new Error(`missing classics era: ${eraId}`);
 }
+if (!feedSource.includes('classicsSearchText')) throw new Error('classics timeline must support search filtering');
+if (!feedSource.includes("'hep-th': 'Theory-HEP'") || !feedSource.includes('subject:')) throw new Error('pre-arXiv classics must support INSPIRE subject queries');
 
 const baseArxivId = value => String(value || '').split('/abs/').pop().replace(/v\d+$/i, '');
 const versionedIds = [

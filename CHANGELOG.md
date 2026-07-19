@@ -2,6 +2,11 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.18] - 2026-07-19
+- Extended classics era tabs to start at the 1970s.
+- Added a keyword/arXiv-query filter box to the classics timeline.
+- Allowed INSPIRE-only classics records to appear when older eras do not have arXiv IDs.
+
 ## [0.4.17] - 2026-07-19
 - Added era tabs to the classics timeline for switching among settings, 1990s, five-year buckets, and 2020-now.
 

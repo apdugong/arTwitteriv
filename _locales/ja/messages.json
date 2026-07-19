@@ -20,6 +20,8 @@
   "classicsEra2020Now": { "message": "2020年以降" },
   "searchLabel": { "message": "arXiv検索" },
   "searchPlaceholder": { "message": "generalized symmetry" },
+  "classicsSearchLabel": { "message": "名著を絞り込み" },
+  "classicsSearchPlaceholder": { "message": "duality, Witten, または au:Polchinski" },
   "searchSubmit": { "message": "検索" },
   "shufflePapers": { "message": "別の論文を流す" },
   "loadingLatest": { "message": "新着を読み込み中..." },
@@ -71,6 +73,7 @@
   "defaultsRestoredPending": { "message": "この画面の分野を初期設定に戻しました。保存で反映、間違えた場合はこの画面で取り消せます。" },
   "restoreUndone": { "message": "初期設定への変更を取り消しました。反映するには保存してください。" },
   "settingsSaved": { "message": "保存しました" },
+  "unknownDate": { "message": "日付不明" },
   "today": { "message": "今日" },
   "yesterday": { "message": "昨日" },
   "daysAgo": { "message": "$count$日前", "placeholders": { "count": { "content": "$1" } } },
@@ -113,5 +116,6 @@
   "searchIntroWithQuery": { "message": "「$query$」の検索結果です。", "placeholders": { "query": { "content": "$1" } } },
   "randomIntro": { "message": "期間・引用数の条件に合う「$field$」の論文をランダムに流します。条件は設定画面で変更できます。", "placeholders": { "field": { "content": "$1" } } },
   "classicsIntroArxiv": { "message": "「$field$」の「$era$」の高被引用論文をarXiv候補から探します。", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
-  "classicsIntroInspire": { "message": "「$field$」の「$era$」の高被引用論文をINSPIRE優先で探します。", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } }
+  "classicsIntroInspire": { "message": "「$field$」の「$era$」の高被引用論文をINSPIRE優先で探します。", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
+  "classicsSearchIntro": { "message": "「$query$」で絞り込み中です。", "placeholders": { "query": { "content": "$1" } } }
 }

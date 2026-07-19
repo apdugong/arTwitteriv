@@ -4,6 +4,7 @@ let selectedField = '';
 let explorationQuery = '';
 let explorationLabel = '';
 let searchText = '';
+let classicsSearchText = '';
 let selectedClassicsEra = 'settings';
 let start = 0;
 let loading = false;
@@ -25,31 +26,46 @@ const fieldSelect = document.querySelector('#fieldSelect');
 const fieldControl = document.querySelector('#fieldControl');
 const searchForm = document.querySelector('#searchForm');
 const searchInput = document.querySelector('#searchInput');
+const classicsSearchForm = document.querySelector('#classicsSearchForm');
+const classicsSearchInput = document.querySelector('#classicsSearchInput');
 const shuffleButton = document.querySelector('#shuffleButton');
 const classicsEraTabs = document.querySelector('#classicsEraTabs');
 const modeIntro = document.querySelector('#modeIntro');
 const CLASSICS_ERAS = [
   { id: 'settings', labelKey: 'classicsEraSettings' },
-  { id: '1991_1999', label: '1991-1999', start: '1991-01-01', end: '1999-12-31' },
+  { id: '1970_1979', label: '1970-1979', start: '1970-01-01', end: '1979-12-31', preArxiv: true },
+  { id: '1980_1989', label: '1980-1989', start: '1980-01-01', end: '1989-12-31', preArxiv: true },
+  { id: '1990_1994', label: '1990-1994', start: '1990-01-01', end: '1994-12-31' },
+  { id: '1995_1999', label: '1995-1999', start: '1995-01-01', end: '1999-12-31' },
   { id: '2000_2004', label: '2000-2004', start: '2000-01-01', end: '2004-12-31' },
   { id: '2005_2009', label: '2005-2009', start: '2005-01-01', end: '2009-12-31' },
   { id: '2010_2014', label: '2010-2014', start: '2010-01-01', end: '2014-12-31' },
   { id: '2015_2019', label: '2015-2019', start: '2015-01-01', end: '2019-12-31' },
   { id: '2020_now', labelKey: 'classicsEra2020Now', start: '2020-01-01', end: '' }
 ];
+const PRE_ARXIV_SUBJECT_BY_CATEGORY = {
+  'hep-th': 'Theory-HEP',
+  'hep-ph': 'Phenomenology-HEP',
+  'hep-ex': 'Experiment-HEP',
+  'hep-lat': 'Lattice'
+};
 
 function text(node, selector) { return node.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() || ''; }
 function baseArxivId(value) { return String(value || '').split('/abs/').pop().replace(/v\d+$/i, ''); }
 function entryId(entry) { return baseArxivId(text(entry, 'id')); }
 function formatDate(value) {
   const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return i18n('unknownDate');
   const days = Math.floor((Date.now() - date.getTime()) / 86400000);
   if (days === 0) return i18n('today');
   if (days === 1) return i18n('yesterday');
   if (days > 1 && days < 7) return i18n('daysAgo', days);
   return new Intl.DateTimeFormat(i18nLocale(), { year: 'numeric', month: 'short', day: 'numeric' }).format(date);
 }
-function paperAgeDays(paper) { return Math.floor((Date.now() - new Date(paper.published).getTime()) / 86400000); }
+function paperAgeDays(paper) {
+  const published = new Date(paper.published).getTime();
+  return Number.isFinite(published) ? Math.floor((Date.now() - published) / 86400000) : Infinity;
+}
 function currentField() { return settings.fields.find(field => field.id === selectedField) || settings.fields[0]; }
 function arxivQuoted(value) { return String(value || '').replaceAll('"', ' ').replace(/\s+/g, ' ').trim(); }
 function currentQuery() {
@@ -74,6 +90,10 @@ function searchInputQuery(value) {
     .map(term => term.includes(' ') ? `all:"${term}"` : `all:${term}`)
     .join(' AND ');
 }
+function classicsQuery() {
+  const filter = searchInputQuery(classicsSearchText);
+  return filter ? `(${activeQuery()}) AND (${filter})` : activeQuery();
+}
 function apiUrl(params) { return `https://export.arxiv.org/api/query?${new URLSearchParams(params)}`; }
 function arxivDate(date, end = false) {
   if (!date) return end ? '299912312359' : '199101010000';
@@ -84,6 +104,14 @@ function datedQuery(query, startDate, endDate) {
 }
 function currentClassicsEra() {
   return CLASSICS_ERAS.find(era => era.id === selectedClassicsEra) || CLASSICS_ERAS[0];
+}
+function normalizeClassicsEraId(value) {
+  const id = value === '1991_1999' ? '1995_1999' : value;
+  return CLASSICS_ERAS.some(era => era.id === id) ? id : 'settings';
+}
+function classicsUsesPreArxivSubject() {
+  const era = currentClassicsEra();
+  return era.preArxiv || (era.start && era.start < '1991-01-01');
 }
 function classicsEraLabel(era = currentClassicsEra()) {
   return era.labelKey ? i18n(era.labelKey) : era.label;
@@ -126,9 +154,13 @@ function parseEntry(entry) {
     pdfUrl: `https://arxiv.org/pdf/${id}`
   };
 }
-function inspireTextQuery(query) {
+function inspireCategoryQuery(category, options = {}) {
+  if (options.preArxivSubject && PRE_ARXIV_SUBJECT_BY_CATEGORY[category]) return `subject:${PRE_ARXIV_SUBJECT_BY_CATEGORY[category]}`;
+  return `arxiv_eprints.categories:${category}`;
+}
+function inspireTextQuery(query, options = {}) {
   return String(query || '')
-    .replace(/\bcat:([A-Za-z0-9.-]+)/g, 'arxiv_eprints.categories:$1')
+    .replace(/\bcat:([A-Za-z0-9.-]+)/g, (_, category) => inspireCategoryQuery(category, options))
     .replace(/\ball:"([^"]+)"/g, '"$1"')
     .replace(/\ball:([^\s()]+)/g, '$1')
     .replace(/\bau:"([^"]+)"/g, 'a $1')
@@ -152,7 +184,7 @@ function inspireClassicsQuery() {
   const range = citationRange('classics');
   const dates = classicsDateRange();
   return [
-    inspireTextQuery(activeQuery()),
+    inspireTextQuery(classicsQuery(), { preArxivSubject: classicsUsesPreArxivSubject() }),
     inspireDateQuery(dates.startDate, dates.endDate),
     inspireCitationQuery(range)
   ].filter(Boolean).join(' and ');
@@ -167,17 +199,21 @@ function inspireTotal(result) {
 function parseInspirePaper(hit) {
   const metadata = hit.metadata || {};
   const arxiv = (metadata.arxiv_eprints || []).find(item => item.value);
-  if (!arxiv?.value) return null;
+  const controlNumber = metadata.control_number || hit.id;
+  if (!arxiv?.value && !controlNumber) return null;
   const citationCount = Number(metadata.citation_count);
+  const arxivId = arxiv?.value ? baseArxivId(arxiv.value) : '';
+  const inspireCategories = (metadata.inspire_categories || []).map(category => category.term).filter(Boolean);
   return {
-    id: baseArxivId(arxiv.value),
+    id: arxivId || `inspire:${controlNumber}`,
     title: metadata.titles?.find(item => item.title)?.title || 'Untitled',
     summary: metadata.abstracts?.find(item => item.value)?.value || '',
     authors: (metadata.authors || []).map(author => author.full_name).filter(Boolean),
-    categories: arxiv.categories || [],
+    categories: arxiv?.categories?.length ? arxiv.categories : inspireCategories,
     published: metadata.earliest_date || '',
-    abstractUrl: `https://arxiv.org/abs/${baseArxivId(arxiv.value)}`,
-    pdfUrl: `https://arxiv.org/pdf/${baseArxivId(arxiv.value)}`,
+    abstractUrl: arxivId ? `https://arxiv.org/abs/${arxivId}` : `https://inspirehep.net/literature/${controlNumber}`,
+    abstractLabel: arxivId ? 'arXiv' : 'INSPIRE',
+    pdfUrl: arxivId ? `https://arxiv.org/pdf/${arxivId}` : '',
     citationCount: Number.isFinite(citationCount) ? citationCount : null,
     citationSource: Number.isFinite(citationCount) ? 'INSPIRE' : ''
   };
@@ -190,7 +226,7 @@ async function fetchInspireSearch(query, page, size) {
     sort: 'mostcited',
     page,
     size,
-    fields: 'titles,abstracts,authors.full_name,arxiv_eprints,citation_count,earliest_date'
+    fields: 'titles,abstracts,authors.full_name,arxiv_eprints,inspire_categories,citation_count,earliest_date,control_number'
   }));
   if (response.status === 429) {
     const wait = retryAfterMs(response);
@@ -410,6 +446,9 @@ function explore(query, label) {
   document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
   reloadMode();
 }
+function looksLikeArxivCategory(category) {
+  return /^[a-z]+(?:-[a-z]+)*(?:\.[A-Za-z0-9-]+)?$/.test(category || '');
+}
 
 function renderPaper(paper, extra = {}) {
   if (isSkipped(paper)) return;
@@ -426,8 +465,12 @@ function renderPaper(paper, extra = {}) {
   fragment.querySelector('.title').textContent = paper.title;
   fragment.querySelector('.authors').textContent = paper.authors.join(', ');
   summaryEl.textContent = paper.summary;
-  fragment.querySelector('.abstract').href = `https://arxiv.org/abs/${baseArxivId(paper.id)}`;
-  fragment.querySelector('.pdf').href = `https://arxiv.org/pdf/${baseArxivId(paper.id)}`;
+  const abstract = fragment.querySelector('.abstract');
+  const pdf = fragment.querySelector('.pdf');
+  abstract.href = paper.abstractUrl || `https://arxiv.org/abs/${baseArxivId(paper.id)}`;
+  abstract.textContent = paper.abstractLabel || 'arXiv';
+  if (paper.pdfUrl) pdf.href = paper.pdfUrl;
+  else pdf.hidden = true;
   save.textContent = savedPapers[paper.id] ? i18n('savedStar') : i18n('save');
   const citation = fragment.querySelector('.citation-count');
   if (Number.isFinite(paper.citationCount)) {
@@ -443,7 +486,7 @@ function renderPaper(paper, extra = {}) {
   fragment.querySelector('.skip').addEventListener('click', () => setReaction(paper, 'skip', card));
   sameAuthor.hidden = !paper.authors[0];
   sameAuthor.addEventListener('click', () => explore(`au:"${arxivQuoted(paper.authors[0])}"`, i18n('authorExploreLabel', paper.authors[0])));
-  sameField.hidden = !paper.categories[0];
+  sameField.hidden = !looksLikeArxivCategory(paper.categories[0]);
   sameField.addEventListener('click', () => explore(`cat:${paper.categories[0]}`, i18n('fieldExploreLabel', paper.categories[0])));
   readMore.addEventListener('click', () => {
     const collapsed = summaryEl.classList.toggle('collapsed');
@@ -537,7 +580,7 @@ async function loadFilteredRandom(modeName) {
   loading = true; showStatus(modeName === 'classics' ? i18n('classicsSearching') : i18n('randomSearching'));
   try {
     const dates = timelineDateRange(modeName);
-    const query = datedQuery(activeQuery(), dates.startDate, dates.endDate);
+    const query = datedQuery(modeName === 'classics' ? classicsQuery() : activeQuery(), dates.startDate, dates.endDate);
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
     if (!available) { showStatus(i18n('noPapersForFieldPeriod')); return; }
@@ -583,7 +626,10 @@ function updateIntro() {
   if (explorationQuery && mode !== 'search') modeIntro.textContent = i18n('explorationIntro', explorationLabel);
   else if (mode === 'search') modeIntro.textContent = searchText ? i18n('searchIntroWithQuery', searchText) : i18n('searchIntro');
   else if (mode === 'random') modeIntro.textContent = i18n('randomIntro', currentField().label);
-  else if (mode === 'classics') modeIntro.textContent = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', [currentField().label, classicsEraLabel()]) : i18n('classicsIntroInspire', [currentField().label, classicsEraLabel()]);
+  else if (mode === 'classics') {
+    const intro = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', [currentField().label, classicsEraLabel()]) : i18n('classicsIntroInspire', [currentField().label, classicsEraLabel()]);
+    modeIntro.textContent = classicsSearchText ? `${intro} ${i18n('classicsSearchIntro', classicsSearchText)}` : intro;
+  }
   else modeIntro.hidden = true;
 }
 function reloadMode() {
@@ -593,6 +639,7 @@ function reloadMode() {
   fieldControl.hidden = mode === 'search';
   fieldControl.style.display = mode === 'search' ? 'none' : '';
   searchForm.hidden = mode !== 'search';
+  classicsSearchForm.hidden = mode !== 'classics';
   fieldSelect.disabled = mode === 'saved';
   if (mode === 'latest') loadLatest();
   else if (mode === 'search') loadSearch();
@@ -640,6 +687,15 @@ searchForm.addEventListener('submit', async event => {
   document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
   reloadMode();
 });
+classicsSearchForm.addEventListener('submit', async event => {
+  event.preventDefault();
+  classicsSearchText = classicsSearchInput.value.trim();
+  await chrome.storage.local.set({ lastClassicsSearchText: classicsSearchText });
+  randomSeen.clear();
+  mode = 'classics';
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
+  reloadMode();
+});
 shuffleButton.addEventListener('click', () => { feed.replaceChildren(); randomSeen.clear(); reloadMode(); });
 document.querySelector('#refreshButton').addEventListener('click', reloadMode);
 document.querySelector('#optionsButton').addEventListener('click', () => chrome.runtime.openOptionsPage());
@@ -655,10 +711,12 @@ new IntersectionObserver(entries => {
   await i18nReady;
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   if (!Array.isArray(settings.fields) || !settings.fields.length) settings.fields = BUILTIN_FIELDS;
-  const localState = await chrome.storage.local.get({ lastSearchText: '', lastClassicsEra: 'settings' });
+  const localState = await chrome.storage.local.get({ lastSearchText: '', lastClassicsEra: 'settings', lastClassicsSearchText: '' });
   searchText = localState.lastSearchText;
-  selectedClassicsEra = CLASSICS_ERAS.some(era => era.id === localState.lastClassicsEra) ? localState.lastClassicsEra : 'settings';
+  classicsSearchText = localState.lastClassicsSearchText;
+  selectedClassicsEra = normalizeClassicsEraId(localState.lastClassicsEra);
   searchInput.value = searchText;
+  classicsSearchInput.value = classicsSearchText;
   populateFields();
   renderClassicsEraTabs();
   selectedField = settings.fields.some(f => f.id === settings.defaultField) ? settings.defaultField : settings.fields[0].id;

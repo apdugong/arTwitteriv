@@ -20,6 +20,8 @@
   "classicsEra2020Now": { "message": "2020-now" },
   "searchLabel": { "message": "Search arXiv" },
   "searchPlaceholder": { "message": "generalized symmetry" },
+  "classicsSearchLabel": { "message": "Filter classics" },
+  "classicsSearchPlaceholder": { "message": "duality, Witten, or au:Polchinski" },
   "searchSubmit": { "message": "Search" },
   "shufflePapers": { "message": "Show Different Papers" },
   "loadingLatest": { "message": "Loading latest papers..." },
@@ -71,6 +73,7 @@
   "defaultsRestoredPending": { "message": "Default fields restored in this form. Save to apply, or undo on this page if it was accidental." },
   "restoreUndone": { "message": "Restore undone. Save to apply the restored list." },
   "settingsSaved": { "message": "Saved." },
+  "unknownDate": { "message": "Unknown date" },
   "today": { "message": "Today" },
   "yesterday": { "message": "Yesterday" },
   "daysAgo": { "message": "$count$ days ago", "placeholders": { "count": { "content": "$1" } } },
@@ -113,5 +116,6 @@
   "searchIntroWithQuery": { "message": "Search results for \"$query$\".", "placeholders": { "query": { "content": "$1" } } },
   "randomIntro": { "message": "Showing random papers in $field$ that match the date and citation filters. You can change the filters in Settings.", "placeholders": { "field": { "content": "$1" } } },
   "classicsIntroArxiv": { "message": "Searching arXiv candidates for highly cited papers in $field$ from $era$.", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
-  "classicsIntroInspire": { "message": "Searching INSPIRE first for highly cited papers in $field$ from $era$.", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } }
+  "classicsIntroInspire": { "message": "Searching INSPIRE first for highly cited papers in $field$ from $era$.", "placeholders": { "field": { "content": "$1" }, "era": { "content": "$2" } } },
+  "classicsSearchIntro": { "message": "Filtered by \"$query$\".", "placeholders": { "query": { "content": "$1" } } }
 }
