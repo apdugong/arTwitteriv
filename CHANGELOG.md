@@ -2,6 +2,10 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.19] - 2026-07-20
+- Added a Serendipity dial to steer the Random timeline toward close, weird, ancient, or chaotic picks.
+- Added Citation Guess cards that hide fetched citation counts until the user guesses or reveals them.
+
 ## [0.4.18] - 2026-07-19
 - Extended classics era tabs to start at the 1970s.
 - Added a keyword/arXiv-query filter box to the classics timeline.

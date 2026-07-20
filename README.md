@@ -10,11 +10,13 @@ The default interface and documentation are in English. A Japanese Chrome locale
 - Category-based default field presets using arXiv categories such as `cat:hep-th`
 - Search tab for ad-hoc keyword searches or advanced arXiv queries
 - Random timeline filtered by field, date range, and citation-count range
+- Serendipity dial for steering random discovery toward close, weird, ancient, or more chaotic picks
 - Classics timeline that searches for highly cited papers at runtime instead of using a fixed list
 - Era tabs in the classics timeline for switching between the configured range, 1970s, 1980s, five-year buckets, and 2020-now
 - Classics keyword filter for narrowing highly cited papers by topic or arXiv-style query
 - INSPIRE-first classics search with an arXiv-based fallback
 - Runtime citation counts from Semantic Scholar and, for high-energy physics papers, INSPIRE
+- Citation Guess cards that hide fetched citation counts until you guess or reveal them
 - Editable field tabs with a display name and arXiv query
 - Undo for accidental field-preset default restoration before closing the options page
 - Optional author-name filter

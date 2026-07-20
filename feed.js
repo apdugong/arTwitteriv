@@ -5,12 +5,14 @@ let explorationQuery = '';
 let explorationLabel = '';
 let searchText = '';
 let classicsSearchText = '';
+let serendipityMode = 'balanced';
 let selectedClassicsEra = 'settings';
 let start = 0;
 let loading = false;
 let exhausted = false;
 let savedPapers = {};
 let paperReactions = {};
+let citationGuesses = {};
 let randomSeen = new Set();
 let semanticScholarPauseUntil = 0;
 let inspirePauseUntil = 0;
@@ -28,6 +30,8 @@ const searchForm = document.querySelector('#searchForm');
 const searchInput = document.querySelector('#searchInput');
 const classicsSearchForm = document.querySelector('#classicsSearchForm');
 const classicsSearchInput = document.querySelector('#classicsSearchInput');
+const serendipityControl = document.querySelector('#serendipityControl');
+const serendipityButtons = document.querySelector('#serendipityButtons');
 const shuffleButton = document.querySelector('#shuffleButton');
 const classicsEraTabs = document.querySelector('#classicsEraTabs');
 const modeIntro = document.querySelector('#modeIntro');
@@ -49,6 +53,18 @@ const PRE_ARXIV_SUBJECT_BY_CATEGORY = {
   'hep-ex': 'Experiment-HEP',
   'hep-lat': 'Lattice'
 };
+const SERENDIPITY_MODES = [
+  { id: 'balanced', labelKey: 'serendipityBalanced', introKey: 'serendipityIntroBalanced' },
+  { id: 'close', labelKey: 'serendipityClose', introKey: 'serendipityIntroClose' },
+  { id: 'weird', labelKey: 'serendipityWeird', introKey: 'serendipityIntroWeird' },
+  { id: 'ancient', labelKey: 'serendipityAncient', introKey: 'serendipityIntroAncient' },
+  { id: 'chaos', labelKey: 'serendipityChaos', introKey: 'serendipityIntroChaos' }
+];
+const CITATION_GUESS_OPTIONS = [
+  { id: 'low', labelKey: 'citationGuessLow', max: 99 },
+  { id: 'medium', labelKey: 'citationGuessMedium', max: 999 },
+  { id: 'high', labelKey: 'citationGuessHigh', max: Infinity }
+];
 
 function text(node, selector) { return node.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() || ''; }
 function baseArxivId(value) { return String(value || '').split('/abs/').pop().replace(/v\d+$/i, ''); }
@@ -68,12 +84,27 @@ function paperAgeDays(paper) {
 }
 function currentField() { return settings.fields.find(field => field.id === selectedField) || settings.fields[0]; }
 function arxivQuoted(value) { return String(value || '').replaceAll('"', ' ').replace(/\s+/g, ' ').trim(); }
-function currentQuery() {
-  const query = currentField()?.query || 'cat:hep-th';
+function fieldQueryWithAuthor(field) {
+  const query = field?.query || 'cat:hep-th';
   const author = arxivQuoted(settings.authorFilter);
   return author ? `(${query}) AND au:"${author}"` : query;
 }
+function currentQuery() { return fieldQueryWithAuthor(currentField()); }
 function activeQuery() { return explorationQuery || currentQuery(); }
+function normalizeSerendipityMode(value) {
+  return SERENDIPITY_MODES.some(option => option.id === value) ? value : 'balanced';
+}
+function serendipityOption(id = serendipityMode) {
+  return SERENDIPITY_MODES.find(option => option.id === id) || SERENDIPITY_MODES[0];
+}
+function serendipityLabel(id = serendipityMode) {
+  return i18n(serendipityOption(id).labelKey);
+}
+function randomDiscoveryQuery() {
+  if (explorationQuery || serendipityMode !== 'chaos' || settings.fields.length < 2) return activeQuery();
+  const fields = settings.fields.filter(field => field.id !== selectedField);
+  return fieldQueryWithAuthor(fields[Math.floor(Math.random() * fields.length)]);
+}
 function looksLikeArxivQuery(value) {
   return /\b(?:all|ti|au|abs|cat|id|jr|rn|co):/i.test(value) || /\b(?:AND|OR|ANDNOT)\b/.test(value) || /[()]/.test(value);
 }
@@ -362,6 +393,14 @@ function passesCitation(paper, range) {
   if (!Number.isFinite(paper.citationCount)) return allowsUnknownCitations;
   return paper.citationCount >= range.min && paper.citationCount <= range.max;
 }
+function stringHash(value) {
+  return [...String(value || '')].reduce((hash, character) => ((hash << 5) - hash + character.charCodeAt(0)) | 0, 0).toString(36);
+}
+function randomPageOffset(available, pageSize, modeName) {
+  const maxOffset = Math.max(1, available - Math.min(pageSize, available));
+  const roll = modeName === 'random' && serendipityMode === 'ancient' ? Math.sqrt(Math.random()) : Math.random();
+  return Math.floor(roll * maxOffset);
+}
 async function loadSaved() { savedPapers = (await chrome.storage.local.get({ savedPapers: {} })).savedPapers; }
 async function persistSaved() { await chrome.storage.local.set({ savedPapers }); }
 async function loadReactions() { paperReactions = (await chrome.storage.local.get({ paperReactions: {} })).paperReactions; }
@@ -369,6 +408,11 @@ async function persistReactions() { await chrome.storage.local.set({ paperReacti
 function reactionFor(paper) { return paperReactions[paper.id]?.reaction || ''; }
 function isSkipped(paper) { return reactionFor(paper) === 'skip'; }
 function visiblePapers(papers) { return papers.filter(paper => !isSkipped(paper)); }
+function reactedPaperRecords() {
+  return Object.values(paperReactions)
+    .filter(record => ['interest', 'read'].includes(record.reaction) && record.paper)
+    .map(record => record.paper);
+}
 function reactionAffinity(paper, options = {}) {
   const categories = new Set(options.includeCategories ? paper.categories || [] : []);
   const authors = new Set(paper.authors || []);
@@ -381,9 +425,34 @@ function reactionAffinity(paper, options = {}) {
     return score + (categoryHit ? weight : 0) + (authorHit ? weight * 2 : 0);
   }, 0);
 }
+function noveltyScore(paper) {
+  const records = reactedPaperRecords();
+  if (!records.length) return 1;
+  const seenCategories = new Set(records.flatMap(record => record.categories || []));
+  const seenAuthors = new Set(records.flatMap(record => record.authors || []));
+  const hasSeenCategory = (paper.categories || []).some(category => seenCategories.has(category));
+  const hasSeenAuthor = (paper.authors || []).some(author => seenAuthors.has(author));
+  return (hasSeenCategory ? 0 : 4) + (hasSeenAuthor ? 0 : 5) + Math.min((paper.categories || []).length, 3);
+}
+function citationWeight(paper) {
+  return Number.isFinite(paper.citationCount) ? Math.log10(paper.citationCount + 1) : 0;
+}
+function rankRandomPapers(papers) {
+  return papers.map(paper => {
+    const affinity = reactionAffinity(paper, { includeCategories: true });
+    const ageYears = Math.min(paperAgeDays(paper) / 365, 80);
+    const randomTiebreaker = Math.random();
+    let score = randomTiebreaker;
+    if (serendipityMode === 'close') score += affinity * 8 + citationWeight(paper);
+    else if (serendipityMode === 'weird') score += noveltyScore(paper) * 3 - affinity * 4;
+    else if (serendipityMode === 'ancient') score += ageYears + citationWeight(paper) * 2;
+    else if (serendipityMode === 'chaos') score += noveltyScore(paper) * 2 + randomTiebreaker * 8 - affinity;
+    return { paper, score };
+  }).sort((a, b) => b.score - a.score).map(item => item.paper);
+}
 function rankForTimeline(papers, modeName) {
   if (modeName === 'search') return papers;
-  if (modeName === 'random') return papers.sort(() => Math.random() - 0.5);
+  if (modeName === 'random') return rankRandomPapers(papers);
   return papers.sort((a, b) => {
     const affinity = reactionAffinity(b, { includeCategories: true }) - reactionAffinity(a, { includeCategories: true });
     if (affinity) return affinity;
@@ -418,12 +487,82 @@ function updateReactionButtons(card, paper) {
   labelReaction(card.querySelector('.read'), i18n('reactionReadActive'), i18n('reactionRead'), reaction === 'read');
   labelReaction(card.querySelector('.skip'), i18n('reactionSkipActive'), i18n('reactionSkip'), reaction === 'skip');
 }
+async function persistCitationGuesses() { await chrome.storage.local.set({ citationGuesses }); }
+function citationText(paper) {
+  const count = paper.citationCount.toLocaleString(i18nLocale());
+  const label = i18n('citationCount', count);
+  return `${label}${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
+}
+function citationGuessBucket(count) {
+  return CITATION_GUESS_OPTIONS.find(option => count <= option.max)?.id || 'high';
+}
+function citationGuessOptionLabel(guess) {
+  const option = CITATION_GUESS_OPTIONS.find(item => item.id === guess);
+  return option ? i18n(option.labelKey) : '';
+}
+function revealCitationGuess(card, paper, guess = '') {
+  const citation = card.querySelector('.citation-count');
+  const panel = card.querySelector('.citation-guess');
+  const result = card.querySelector('.citation-result');
+  const actual = citationText(paper);
+  const correct = citationGuessBucket(paper.citationCount);
+  citation.hidden = false;
+  citation.textContent = actual;
+  panel.classList.add('revealed');
+  card.querySelectorAll('.guess-button').forEach(button => {
+    button.disabled = true;
+    button.classList.toggle('correct', button.dataset.guess === correct);
+    button.classList.toggle('missed', Boolean(guess) && guess !== correct && button.dataset.guess === guess);
+  });
+  const reveal = card.querySelector('.reveal-citations');
+  if (reveal) reveal.hidden = true;
+  result.hidden = false;
+  if (!guess) result.textContent = i18n('citationGuessRevealed', actual);
+  else if (guess === correct) result.textContent = i18n('citationGuessCorrect', actual);
+  else result.textContent = i18n('citationGuessMiss', [citationGuessOptionLabel(guess), actual]);
+}
+function setupCitationGuess(card, paper) {
+  if (!Number.isFinite(paper.citationCount)) return;
+  const panel = card.querySelector('.citation-guess');
+  const label = card.querySelector('.citation-guess-label');
+  const options = card.querySelector('.citation-options');
+  panel.hidden = false;
+  label.textContent = i18n('citationGuessLabel');
+  options.replaceChildren();
+  CITATION_GUESS_OPTIONS.forEach(option => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'guess-button';
+    button.dataset.guess = option.id;
+    button.textContent = i18n(option.labelKey);
+    button.addEventListener('click', async () => {
+      citationGuesses[paper.id] = { guess: option.id, citationCount: paper.citationCount, updatedAt: Date.now() };
+      revealCitationGuess(card, paper, option.id);
+      await persistCitationGuesses();
+    });
+    options.appendChild(button);
+  });
+  const reveal = document.createElement('button');
+  reveal.type = 'button';
+  reveal.className = 'guess-button reveal-citations';
+  reveal.textContent = i18n('citationGuessReveal');
+  reveal.addEventListener('click', async () => {
+    citationGuesses[paper.id] = { guess: '', citationCount: paper.citationCount, updatedAt: Date.now() };
+    revealCitationGuess(card, paper);
+    await persistCitationGuesses();
+  });
+  options.appendChild(reveal);
+  if (citationGuesses[paper.id]) revealCitationGuess(card, paper, citationGuesses[paper.id].guess);
+}
 function discoveryBadges(paper, extra = {}) {
   const badges = [];
   const ageDays = paperAgeDays(paper);
   if (extra.classic || (Number.isFinite(paper.citationCount) && paper.citationCount >= Number(settings.classicsMinCitations || 0))) badges.push(i18n('badgeHighlyCited'));
   if (ageDays >= 0 && ageDays <= 7) badges.push(i18n('badgeNew'));
   if (reactionAffinity(paper) > 0) badges.push(i18n('badgeCloseToInterests'));
+  if (extra.serendipityMode === 'weird') badges.push(i18n('badgeUnfamiliarAngle'));
+  if (extra.serendipityMode === 'ancient') badges.push(i18n('badgeOldSchool'));
+  if (extra.serendipityMode === 'chaos') badges.push(i18n('badgeWildCard'));
   if (savedPapers[paper.id]) badges.push(i18n('badgeSaved'));
   return badges.slice(0, 3);
 }
@@ -474,12 +613,11 @@ function renderPaper(paper, extra = {}) {
   save.textContent = savedPapers[paper.id] ? i18n('savedStar') : i18n('save');
   const citation = fragment.querySelector('.citation-count');
   if (Number.isFinite(paper.citationCount)) {
-    citation.hidden = false;
-    const citationLabel = i18n('citationCount', paper.citationCount.toLocaleString(i18nLocale()));
-    citation.textContent = `${citationLabel}${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
+    citation.textContent = i18n('citationHidden');
   }
   if (extra.classic) fragment.querySelector('.classic-badge').hidden = false;
   renderDiscoveryBadges(card, paper, extra);
+  setupCitationGuess(card, paper);
   updateReactionButtons(card, paper);
   fragment.querySelector('.interest').addEventListener('click', () => setReaction(paper, 'interest', card));
   fragment.querySelector('.read').addEventListener('click', () => setReaction(paper, 'read', card));
@@ -580,7 +718,8 @@ async function loadFilteredRandom(modeName) {
   loading = true; showStatus(modeName === 'classics' ? i18n('classicsSearching') : i18n('randomSearching'));
   try {
     const dates = timelineDateRange(modeName);
-    const query = datedQuery(modeName === 'classics' ? classicsQuery() : activeQuery(), dates.startDate, dates.endDate);
+    const baseQuery = modeName === 'classics' ? classicsQuery() : randomDiscoveryQuery();
+    const query = datedQuery(baseQuery, dates.startDate, dates.endDate);
     const probe = await fetchPapers(apiUrl({ search_query: query, start: 0, max_results: 1, sortBy: 'submittedDate', sortOrder: 'descending' }));
     const available = Math.min(probe.total, 30000);
     if (!available) { showStatus(i18n('noPapersForFieldPeriod')); return; }
@@ -590,10 +729,11 @@ async function loadFilteredRandom(modeName) {
     let rateLimited = false;
     const maxAttempts = modeName === 'classics' ? 4 : 10;
     const pageSize = modeName === 'classics' ? 25 : 50;
+    const seenPrefix = `${modeName}:${modeName === 'random' ? serendipityMode : 'default'}:${stringHash(query)}`;
     for (let attempt = 0; attempt < maxAttempts && accepted.length < target; attempt++) {
-      let offset = Math.floor(Math.random() * Math.max(1, available - Math.min(pageSize, available)));
-      for (let i = 0; i < 8 && randomSeen.has(`${modeName}:${offset}`); i++) offset = Math.floor(Math.random() * Math.max(1, available - pageSize));
-      randomSeen.add(`${modeName}:${offset}`);
+      let offset = randomPageOffset(available, pageSize, modeName);
+      for (let i = 0; i < 8 && randomSeen.has(`${seenPrefix}:${offset}`); i++) offset = randomPageOffset(available, pageSize, modeName);
+      randomSeen.add(`${seenPrefix}:${offset}`);
       const result = await fetchPapers(apiUrl({ search_query: query, start: offset, max_results: Math.min(pageSize, available), sortBy: 'submittedDate', sortOrder: 'descending' }));
       let enriched;
       try { enriched = await addCitationCounts(result.papers, { chunkSize: pageSize, inspireLimit: modeName === 'classics' ? 12 : 6 }); }
@@ -606,7 +746,7 @@ async function loadFilteredRandom(modeName) {
         if (accepted.length < target && !isSkipped(p) && passesCitation(p, range) && !document.querySelector(`[data-id="${CSS.escape(p.id)}"]`)) accepted.push(p);
       });
     }
-    accepted.forEach(p => renderPaper(p, { classic: modeName === 'classics' }));
+    accepted.forEach(p => renderPaper(p, modeName === 'random' ? { serendipityMode } : { classic: modeName === 'classics' }));
     if (rateLimited && accepted.length) showStatus(i18n('citationApiPartial', accepted.length));
     else if (rateLimited) showStatus(i18n('citationApiRateLimit'));
     else if (!accepted.length) showStatus(i18n('noRandomMatch'));
@@ -625,7 +765,7 @@ function updateIntro() {
   modeIntro.hidden = false;
   if (explorationQuery && mode !== 'search') modeIntro.textContent = i18n('explorationIntro', explorationLabel);
   else if (mode === 'search') modeIntro.textContent = searchText ? i18n('searchIntroWithQuery', searchText) : i18n('searchIntro');
-  else if (mode === 'random') modeIntro.textContent = i18n('randomIntro', currentField().label);
+  else if (mode === 'random') modeIntro.textContent = `${i18n('randomIntro', currentField().label)} ${i18n(serendipityOption().introKey)}`;
   else if (mode === 'classics') {
     const intro = (settings.classicsSearchSource || 'auto') === 'arxiv' ? i18n('classicsIntroArxiv', [currentField().label, classicsEraLabel()]) : i18n('classicsIntroInspire', [currentField().label, classicsEraLabel()]);
     modeIntro.textContent = classicsSearchText ? `${intro} ${i18n('classicsSearchIntro', classicsSearchText)}` : intro;
@@ -640,6 +780,7 @@ function reloadMode() {
   fieldControl.style.display = mode === 'search' ? 'none' : '';
   searchForm.hidden = mode !== 'search';
   classicsSearchForm.hidden = mode !== 'classics';
+  serendipityControl.hidden = mode !== 'random';
   fieldSelect.disabled = mode === 'saved';
   if (mode === 'latest') loadLatest();
   else if (mode === 'search') loadSearch();
@@ -677,6 +818,25 @@ function renderClassicsEraTabs() {
     classicsEraTabs.appendChild(button);
   });
 }
+function renderSerendipityButtons() {
+  serendipityButtons.replaceChildren();
+  SERENDIPITY_MODES.forEach(option => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'segment-button';
+    button.dataset.serendipity = option.id;
+    button.textContent = i18n(option.labelKey);
+    button.classList.toggle('active', option.id === serendipityMode);
+    button.addEventListener('click', async () => {
+      serendipityMode = option.id;
+      await chrome.storage.local.set({ serendipityMode });
+      randomSeen.clear();
+      renderSerendipityButtons();
+      if (mode === 'random') reloadMode();
+    });
+    serendipityButtons.appendChild(button);
+  });
+}
 fieldSelect.addEventListener('change', () => { selectedField = fieldSelect.value; explorationQuery = ''; explorationLabel = ''; randomSeen.clear(); reloadMode(); });
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchMode(tab.dataset.mode)));
 searchForm.addEventListener('submit', async event => {
@@ -711,14 +871,17 @@ new IntersectionObserver(entries => {
   await i18nReady;
   settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
   if (!Array.isArray(settings.fields) || !settings.fields.length) settings.fields = BUILTIN_FIELDS;
-  const localState = await chrome.storage.local.get({ lastSearchText: '', lastClassicsEra: 'settings', lastClassicsSearchText: '' });
+  const localState = await chrome.storage.local.get({ lastSearchText: '', lastClassicsEra: 'settings', lastClassicsSearchText: '', serendipityMode: 'balanced', citationGuesses: {} });
   searchText = localState.lastSearchText;
   classicsSearchText = localState.lastClassicsSearchText;
+  serendipityMode = normalizeSerendipityMode(localState.serendipityMode);
+  citationGuesses = localState.citationGuesses && typeof localState.citationGuesses === 'object' ? localState.citationGuesses : {};
   selectedClassicsEra = normalizeClassicsEraId(localState.lastClassicsEra);
   searchInput.value = searchText;
   classicsSearchInput.value = classicsSearchText;
   populateFields();
   renderClassicsEraTabs();
+  renderSerendipityButtons();
   selectedField = settings.fields.some(f => f.id === settings.defaultField) ? settings.defaultField : settings.fields[0].id;
   fieldSelect.value = selectedField;
   await loadSaved(); await loadReactions(); reloadMode();

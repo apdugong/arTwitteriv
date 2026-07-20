@@ -69,6 +69,21 @@ for (const relative of jsFiles) {
   const js = await readFile(path.join(root, relative), 'utf8');
   for (const [, key] of js.matchAll(/\bi18n\(\s*['"]([A-Za-z0-9_]+)['"]/g)) usedMessageKeys.add(key);
 }
+[
+  'serendipityBalanced',
+  'serendipityClose',
+  'serendipityWeird',
+  'serendipityAncient',
+  'serendipityChaos',
+  'serendipityIntroBalanced',
+  'serendipityIntroClose',
+  'serendipityIntroWeird',
+  'serendipityIntroAncient',
+  'serendipityIntroChaos',
+  'citationGuessLow',
+  'citationGuessMedium',
+  'citationGuessHigh'
+].forEach(key => usedMessageKeys.add(key));
 for (const localeName of localeNames) {
   for (const key of usedMessageKeys) {
     if (!locales[localeName][key]?.message) throw new Error(`Missing ${localeName} i18n message: ${key}`);
@@ -95,6 +110,8 @@ for (const eraId of ['1970_1979', '1980_1989', '1990_1994', '1995_1999', '2000_2
 }
 if (!feedSource.includes('classicsSearchText')) throw new Error('classics timeline must support search filtering');
 if (!feedSource.includes("'hep-th': 'Theory-HEP'") || !feedSource.includes('subject:')) throw new Error('pre-arXiv classics must support INSPIRE subject queries');
+if (!feedSource.includes('SERENDIPITY_MODES')) throw new Error('random timeline must support the serendipity dial');
+if (!feedSource.includes('CITATION_GUESS_OPTIONS')) throw new Error('paper cards must support citation guessing');
 
 const baseArxivId = value => String(value || '').split('/abs/').pop().replace(/v\d+$/i, '');
 const versionedIds = [

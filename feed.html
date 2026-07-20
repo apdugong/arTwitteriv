@@ -46,6 +46,10 @@
         </label>
         <button id="classicsSearchButton" class="primary compact" type="submit" data-i18n="searchSubmit">Search</button>
       </form>
+      <div id="serendipityControl" class="segmented-control" hidden>
+        <span class="control-label" data-i18n="serendipityLabel">Serendipity</span>
+        <div id="serendipityButtons" class="segment-buttons" role="group" aria-label="Serendipity dial" data-i18n-aria-label="serendipityControlLabel"></div>
+      </div>
       <button id="shuffleButton" class="secondary compact" hidden data-i18n="shufflePapers">Show Different Papers</button>
     </section>
 
@@ -73,6 +77,13 @@
           <button class="interest reaction-button" type="button" data-i18n="reactionInterest">Interested</button>
           <button class="read reaction-button" type="button" data-i18n="reactionRead">Read</button>
           <button class="skip reaction-button" type="button" data-i18n="reactionSkip">Skip</button>
+        </div>
+        <div class="citation-guess" hidden>
+          <div class="citation-guess-row">
+            <span class="citation-guess-label"></span>
+            <div class="citation-options"></div>
+          </div>
+          <div class="citation-result" hidden></div>
         </div>
         <div class="card-actions">
           <button class="readMore text-button" data-i18n="readMore">Read more</button>
