@@ -2,6 +2,9 @@
 
 All notable user-visible changes should be recorded here.
 
+## [0.4.20] - 2026-07-20
+- Made Citation Guess use age-adjusted citation buckets so Random papers are no longer mostly trivial `<100` guesses.
+
 ## [0.4.19] - 2026-07-20
 - Added a Serendipity dial to steer the Random timeline toward close, weird, ancient, or chaotic picks.
 - Added Citation Guess cards that hide fetched citation counts until the user guesses or reveals them.

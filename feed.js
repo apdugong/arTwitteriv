@@ -60,12 +60,6 @@ const SERENDIPITY_MODES = [
   { id: 'ancient', labelKey: 'serendipityAncient', introKey: 'serendipityIntroAncient' },
   { id: 'chaos', labelKey: 'serendipityChaos', introKey: 'serendipityIntroChaos' }
 ];
-const CITATION_GUESS_OPTIONS = [
-  { id: 'low', labelKey: 'citationGuessLow', max: 99 },
-  { id: 'medium', labelKey: 'citationGuessMedium', max: 999 },
-  { id: 'high', labelKey: 'citationGuessHigh', max: Infinity }
-];
-
 function text(node, selector) { return node.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim() || ''; }
 function baseArxivId(value) { return String(value || '').split('/abs/').pop().replace(/v\d+$/i, ''); }
 function entryId(entry) { return baseArxivId(text(entry, 'id')); }
@@ -493,19 +487,55 @@ function citationText(paper) {
   const label = i18n('citationCount', count);
   return `${label}${paper.citationSource ? ` · ${paper.citationSource}` : ''}`;
 }
-function citationGuessBucket(count) {
-  return CITATION_GUESS_OPTIONS.find(option => count <= option.max)?.id || 'high';
+function citationGuessOption(id, min, max) {
+  return { id, min, max };
 }
-function citationGuessOptionLabel(guess) {
-  const option = CITATION_GUESS_OPTIONS.find(item => item.id === guess);
-  return option ? i18n(option.labelKey) : '';
+function citationGuessOptions(paper, extra = {}) {
+  const ageDays = paperAgeDays(paper);
+  if (extra.classic) return [
+    citationGuessOption('classic_low', 0, 499),
+    citationGuessOption('classic_mid', 500, 1999),
+    citationGuessOption('classic_high', 2000, Infinity)
+  ];
+  if (ageDays <= 365 * 2) return [
+    citationGuessOption('fresh_low', 0, 4),
+    citationGuessOption('fresh_mid', 5, 19),
+    citationGuessOption('fresh_high', 20, Infinity)
+  ];
+  if (ageDays <= 365 * 5) return [
+    citationGuessOption('young_low', 0, 9),
+    citationGuessOption('young_mid', 10, 49),
+    citationGuessOption('young_high', 50, Infinity)
+  ];
+  if (ageDays <= 365 * 12) return [
+    citationGuessOption('mature_low', 0, 24),
+    citationGuessOption('mature_mid', 25, 99),
+    citationGuessOption('mature_high', 100, Infinity)
+  ];
+  return [
+    citationGuessOption('old_low', 0, 49),
+    citationGuessOption('old_mid', 50, 199),
+    citationGuessOption('old_high', 200, Infinity)
+  ];
 }
-function revealCitationGuess(card, paper, guess = '') {
+function citationGuessBucket(count, options) {
+  return options.find(option => count >= option.min && count <= option.max)?.id || options.at(-1)?.id || '';
+}
+function citationGuessRangeLabel(option) {
+  if (option.max === Infinity) return i18n('citationGuessAtLeast', option.min.toLocaleString(i18nLocale()));
+  if (option.min === 0) return i18n('citationGuessLessThan', (option.max + 1).toLocaleString(i18nLocale()));
+  return i18n('citationGuessRange', [option.min.toLocaleString(i18nLocale()), option.max.toLocaleString(i18nLocale())]);
+}
+function citationGuessOptionLabel(guess, options) {
+  const option = options.find(item => item.id === guess);
+  return option ? citationGuessRangeLabel(option) : '';
+}
+function revealCitationGuess(card, paper, guess = '', options = citationGuessOptions(paper)) {
   const citation = card.querySelector('.citation-count');
   const panel = card.querySelector('.citation-guess');
   const result = card.querySelector('.citation-result');
   const actual = citationText(paper);
-  const correct = citationGuessBucket(paper.citationCount);
+  const correct = citationGuessBucket(paper.citationCount, options);
   citation.hidden = false;
   citation.textContent = actual;
   panel.classList.add('revealed');
@@ -519,25 +549,26 @@ function revealCitationGuess(card, paper, guess = '') {
   result.hidden = false;
   if (!guess) result.textContent = i18n('citationGuessRevealed', actual);
   else if (guess === correct) result.textContent = i18n('citationGuessCorrect', actual);
-  else result.textContent = i18n('citationGuessMiss', [citationGuessOptionLabel(guess), actual]);
+  else result.textContent = i18n('citationGuessMiss', [citationGuessOptionLabel(guess, options), actual]);
 }
-function setupCitationGuess(card, paper) {
+function setupCitationGuess(card, paper, extra = {}) {
   if (!Number.isFinite(paper.citationCount)) return;
   const panel = card.querySelector('.citation-guess');
   const label = card.querySelector('.citation-guess-label');
   const options = card.querySelector('.citation-options');
+  const guessOptions = citationGuessOptions(paper, extra);
   panel.hidden = false;
   label.textContent = i18n('citationGuessLabel');
   options.replaceChildren();
-  CITATION_GUESS_OPTIONS.forEach(option => {
+  guessOptions.forEach(option => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'guess-button';
     button.dataset.guess = option.id;
-    button.textContent = i18n(option.labelKey);
+    button.textContent = citationGuessRangeLabel(option);
     button.addEventListener('click', async () => {
       citationGuesses[paper.id] = { guess: option.id, citationCount: paper.citationCount, updatedAt: Date.now() };
-      revealCitationGuess(card, paper, option.id);
+      revealCitationGuess(card, paper, option.id, guessOptions);
       await persistCitationGuesses();
     });
     options.appendChild(button);
@@ -548,11 +579,14 @@ function setupCitationGuess(card, paper) {
   reveal.textContent = i18n('citationGuessReveal');
   reveal.addEventListener('click', async () => {
     citationGuesses[paper.id] = { guess: '', citationCount: paper.citationCount, updatedAt: Date.now() };
-    revealCitationGuess(card, paper);
+    revealCitationGuess(card, paper, '', guessOptions);
     await persistCitationGuesses();
   });
   options.appendChild(reveal);
-  if (citationGuesses[paper.id]) revealCitationGuess(card, paper, citationGuesses[paper.id].guess);
+  if (citationGuesses[paper.id]) {
+    const guess = citationGuesses[paper.id].guess;
+    revealCitationGuess(card, paper, guessOptions.some(option => option.id === guess) ? guess : '', guessOptions);
+  }
 }
 function discoveryBadges(paper, extra = {}) {
   const badges = [];
@@ -617,7 +651,7 @@ function renderPaper(paper, extra = {}) {
   }
   if (extra.classic) fragment.querySelector('.classic-badge').hidden = false;
   renderDiscoveryBadges(card, paper, extra);
-  setupCitationGuess(card, paper);
+  setupCitationGuess(card, paper, extra);
   updateReactionButtons(card, paper);
   fragment.querySelector('.interest').addEventListener('click', () => setReaction(paper, 'interest', card));
   fragment.querySelector('.read').addEventListener('click', () => setReaction(paper, 'read', card));

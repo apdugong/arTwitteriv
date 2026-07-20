@@ -16,7 +16,7 @@ The default interface and documentation are in English. A Japanese Chrome locale
 - Classics keyword filter for narrowing highly cited papers by topic or arXiv-style query
 - INSPIRE-first classics search with an arXiv-based fallback
 - Runtime citation counts from Semantic Scholar and, for high-energy physics papers, INSPIRE
-- Citation Guess cards that hide fetched citation counts until you guess or reveal them
+- Citation Guess cards with age-adjusted buckets that hide fetched citation counts until you guess or reveal them
 - Editable field tabs with a display name and arXiv query
 - Undo for accidental field-preset default restoration before closing the options page
 - Optional author-name filter
